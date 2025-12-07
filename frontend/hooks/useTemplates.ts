@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import { supabase } from "@/utils/supabaseClient";
 import { CredentialType } from "@/utils/credentialTemplates";
 
 export function useTemplates() {
@@ -9,12 +10,25 @@ export function useTemplates() {
 
     const fetchTemplates = async () => {
         try {
-            const res = await fetch("/api/templates");
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                setTemplates(data);
+            const { data, error } = await supabase
+                .from("templates")
+                .select("*")
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+
+            if (data) {
+                // Map DB fields to our interface
+                const formatted: CredentialType[] = data.map((t: any) => ({
+                    id: t.id,
+                    label: t.label,
+                    isDeprecated: t.is_deprecated,
+                    fields: t.fields // JSONB comes back as object
+                }));
+                setTemplates(formatted);
             }
         } catch (e) {
+            console.error(e);
             setError("Failed to load templates");
         } finally {
             setLoading(false);
@@ -26,31 +40,43 @@ export function useTemplates() {
     }, []);
 
     const addTemplate = async (template: CredentialType) => {
-        const res = await fetch("/api/templates", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "create", template })
-        });
-        const json = await res.json();
-        if (json.success) {
+        try {
+            const { error } = await supabase.from("templates").insert({
+                id: template.id,
+                label: template.label,
+                is_deprecated: template.isDeprecated || false,
+                fields: template.fields
+            });
+
+            if (error) {
+                console.error("Add Error:", error);
+                return false;
+            }
             fetchTemplates(); // Refresh
             return true;
+        } catch (e) {
+            console.error(e);
+            return false;
         }
-        return false;
     };
 
     const deprecateTemplate = async (id: string) => {
-        const res = await fetch("/api/templates", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "deprecate", id })
-        });
-        const json = await res.json();
-        if (json.success) {
+        try {
+            const { error } = await supabase
+                .from("templates")
+                .update({ is_deprecated: true })
+                .eq("id", id);
+
+            if (error) {
+                console.error("Deprecate Error:", error);
+                return false;
+            }
             fetchTemplates(); // Refresh
             return true;
+        } catch (e) {
+            console.error(e);
+            return false;
         }
-        return false;
     };
 
     return {

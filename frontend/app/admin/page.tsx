@@ -1,12 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTemplates } from "@/hooks/useTemplates";
 import { CredentialField } from "@/utils/credentialTemplates";
+import { supabase } from "@/utils/supabaseClient";
+import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
+    const router = useRouter();
     const { templates, addTemplate, deprecateTemplate } = useTemplates();
     const [showDeprecated, setShowDeprecated] = useState(false);
+    const [loadingAuth, setLoadingAuth] = useState(true);
+
+    // Auth Check
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                router.replace("/login");
+            } else {
+                setLoadingAuth(false);
+            }
+        };
+        checkUser();
+    }, [router]);
 
     // New Template State
     const [newId, setNewId] = useState("");
