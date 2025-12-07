@@ -1,0 +1,133 @@
+[
+    {
+        "id": "uni_degree",
+        "label": "University Degree",
+        "isDeprecated": false,
+        "fields": [
+            {
+                "key": "studentName",
+                "label": "Student Name",
+                "type": "text",
+                "placeholder": "e.g. John Doe"
+            },
+            {
+                "key": "degreeName",
+                "label": "Degree Name",
+                "type": "text",
+                "placeholder": "e.g. Bachelor of Science"
+            },
+            {
+                "key": "major",
+                "label": "Major",
+                "type": "text",
+                "placeholder": "e.g. Computer Science"
+            },
+            {
+                "key": "graduationDate",
+                "label": "Graduation Date",
+                "type": "date"
+            },
+            {
+                "key": "universityName",
+                "label": "University",
+                "type": "text",
+                "placeholder": "e.g. MIT"
+            },
+            {
+                "key": "honor",
+                "label": "Honors",
+                "type": "text",
+                "placeholder": "e.g. Summa Cum Laude"
+            }
+        ]
+    },
+    {
+        "id": "course_cert",
+        "label": "Course Certificate",
+        "isDeprecated": true,
+        "fields": [
+            {
+                "key": "studentName",
+                "label": "Student Name",
+                "type": "text",
+                "placeholder": "e.g. Jane Smith"
+            },
+            {
+                "key": "courseName",
+                "label": "Course Name",
+                "type": "text",
+                "placeholder": "e.g. Advanced React Patterns"
+            },
+            {
+                "key": "instructor",
+                "label": "Instructor",
+                "type": "text",
+                "placeholder": "e.g. Kent C. Dodds"
+            },
+            {
+                "key": "completionDate",
+                "label": "Completion Date",
+                "type": "date"
+            },
+            {
+                "key": "platform",
+                "label": "Platform/Organization",
+                "type": "text",
+                "placeholder": "e.g. Udemy"
+            }
+        ]
+    },
+    {
+        "id": "employee_id",
+        "label": "Employee Verification",
+        "isDeprecated": false,
+        "fields": [
+            {
+                "key": "employeeName",
+                "label": "Employee Name",
+                "type": "text",
+                "placeholder": "e.g. Alice Johnson"
+            },
+            {
+                "key": "employeeID",
+                "label": "Employee ID",
+                "type": "text",
+                "placeholder": "e.g. EMP-1001"
+            },
+            {
+                "key": "role",
+                "label": "Role / Title",
+                "type": "text",
+                "placeholder": "e.g. Senior Engineer"
+            },
+            {
+                "key": "department",
+                "label": "Department",
+                "type": "text",
+                "placeholder": "e.g. Engineering"
+            },
+            {
+                "key": "startDate",
+                "label": "Start Date",
+                "type": "date"
+            }
+        ]
+    },
+    {
+        "id": "Aadhar",
+        "label": "Aadhar",
+        "fields": [
+            {
+                "key": "aadharNumber",
+                "label": "aadhar number",
+                "type": "number"
+            },
+            {
+                "key": "Name",
+                "label": "Name",
+                "type": "text"
+            }
+        ],
+        "isDeprecated": false
+    }
+]

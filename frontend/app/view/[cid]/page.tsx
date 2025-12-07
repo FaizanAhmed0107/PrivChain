@@ -3,14 +3,11 @@
 import { useEffect, useState, use } from "react";
 // import { pinata } from "@/utils/config";
 import { decryptBundle } from "@/utils/bundleEncryption";
+import { useTemplates } from "@/hooks/useTemplates";
+import { CredentialType } from "@/utils/credentialTemplates";
 
 interface CredentialData {
-    metadata: {
-        studentName: string;
-        studentID: string;
-        description: string;
-        issuedAt: string;
-    };
+    metadata: Record<string, any>;
     fileBlob: Blob;
     fileDetails: {
         name: string;
@@ -21,6 +18,7 @@ interface CredentialData {
 export default function ViewPage({ params }: { params: Promise<{ cid: string }> }) {
     // Params needing to be unwrapped
     const { cid } = use(params);
+    const { templates } = useTemplates(); // Fetch all templates (even deprecated)
 
     const [status, setStatus] = useState("Initializing...");
     const [data, setData] = useState<CredentialData | null>(null);
@@ -43,8 +41,8 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
 
                 // 2. Fetch Encrypted Bundle from IPFS
                 setStatus("Fetching Credential...");
-                // Use public gateway directly to avoid SDK issues in client
-                const gatewayUrl = `https://gateway.pinata.cloud/ipfs/${cid}`;
+                // Use local proxy to avoid CORS
+                const gatewayUrl = `/api/ipfs/${cid}`;
                 const res = await fetch(gatewayUrl);
                 if (!res.ok) throw new Error("Failed to fetch from IPFS");
                 const encryptedBlob = await res.blob();
@@ -78,6 +76,26 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
 
     if (!data) return null;
 
+    // Helper: Find Label for key if it exists in templates, otherwise beautify key
+    const getFieldLabel = (key: string) => {
+        // Try to find in the specific type if known
+        const typeId = data.metadata.typeId;
+        if (typeId) {
+            const template = templates.find(t => t.id === typeId);
+            const field = template?.fields.find(f => f.key === key);
+            if (field) return field.label;
+        }
+        // Fallback: capitalize
+        return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+    };
+
+    // Filter out keys we want to show separately or hide
+    const hiddenKeys = ["typeId", "typeName", "issuedAt", "description"]; // Example excludes
+    // We can also allow 'description' to show if it exists.
+
+    // keys to render in the generic list
+    const displayKeys = Object.keys(data.metadata).filter(k => !hiddenKeys.includes(k));
+
     return (
         <main className="w-full min-h-screen p-6 bg-gray-50 flex flex-col items-center">
             {/* Verification Badge */}
@@ -89,27 +107,28 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
 
                 {/* 1. Metadata Card */}
                 <div className="w-full lg:w-1/3 bg-white p-6 rounded-xl shadow-lg h-fit">
-                    <h2 className="text-xl font-bold mb-4 border-b pb-2">Credential Details</h2>
+                    <h2 className="text-xl font-bold mb-2 border-b pb-2">
+                        {data.metadata.typeName || "Credential Details"}
+                    </h2>
 
-                    <div className="flex flex-col gap-4">
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase font-semibold">Student Name</label>
-                            <p className="text-lg font-medium text-gray-800">{data.metadata.studentName}</p>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase font-semibold">Student ID</label>
-                            <p className="font-mono text-gray-600 bg-gray-100 p-1 rounded w-fit px-2">
-                                {data.metadata.studentID}
-                            </p>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase font-semibold">Description</label>
-                            <p className="text-gray-600">{data.metadata.description}</p>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase font-semibold">Issued Date</label>
-                            <p className="text-gray-600">{new Date(data.metadata.issuedAt).toLocaleDateString()}</p>
-                        </div>
+                    <div className="flex flex-col gap-4 mt-4">
+
+                        {/* Render Issued Date if present */}
+                        {data.metadata.issuedAt && (
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase font-semibold">Issued Date</label>
+                                <p className="text-gray-600">{new Date(data.metadata.issuedAt).toLocaleDateString()}</p>
+                            </div>
+                        )}
+
+                        {/* Render Dynamic Keys */}
+                        {displayKeys.map(key => (
+                            <div key={key}>
+                                <label className="text-xs text-gray-400 uppercase font-semibold">{getFieldLabel(key)}</label>
+                                <p className="text-lg font-medium text-gray-800">{data.metadata[key]}</p>
+                            </div>
+                        ))}
+
                     </div>
                 </div>
 

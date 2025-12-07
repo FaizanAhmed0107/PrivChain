@@ -1,18 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { pinata } from "@/utils/config";
 import { encryptBundle } from "@/utils/bundleEncryption";
+import { useTemplates } from "@/hooks/useTemplates";
 
 export default function IssuePage() {
+    const { activeTemplates, loading } = useTemplates();
     const [file, setFile] = useState<File>();
-    // Metadata State
-    const [studentName, setStudentName] = useState("");
-    const [studentID, setStudentID] = useState("");
-    const [description, setDescription] = useState("");
+
+    // Type Selection
+    const [selectedTypeId, setSelectedTypeId] = useState("");
+    const selectedType = activeTemplates.find(t => t.id === selectedTypeId);
+
+    // Dynamic Form State
+    const [formData, setFormData] = useState<Record<string, string>>({});
 
     const [status, setStatus] = useState("");
     const [resultLink, setResultLink] = useState("");
+
+    // Set default selection once templates load
+    useEffect(() => {
+        if (activeTemplates.length > 0 && !selectedTypeId) {
+            setSelectedTypeId(activeTemplates[0].id);
+        }
+    }, [activeTemplates, selectedTypeId]);
+
+    const handleInputChange = (key: string, value: string) => {
+        setFormData(prev => ({
+            ...prev,
+            [key]: value
+        }));
+    };
 
     const getSignedUrl = async () => {
         const req = await fetch("/api/url");
@@ -20,19 +39,28 @@ export default function IssuePage() {
         return res.url;
     };
 
+    // Loading Guard
+    if (loading) return <p className="text-center mt-20">Loading Templates...</p>;
+    if (!selectedType) return <p className="text-center mt-20">No Templates Found. Please add one in Admin Panel.</p>;
+
     const handleIssue = async () => {
         if (!file) return alert("Please select a file.");
-        if (!studentName || !studentID) return alert("Please fill in student details.");
+
+        // Simple validation: check if all required fields are filled
+        const missingFields = selectedType.fields.filter(f => !formData[f.key]);
+        if (missingFields.length > 0) {
+            return alert(`Missing fields: ${missingFields.map(f => f.label).join(", ")}`);
+        }
 
         try {
             setStatus("Preparing and Encrypting Bundle...");
 
-            // 1. Prepare Metadata which will be hidden inside the encryption
+            // 1. Prepare Metadata
             const metadata = {
-                studentName,
-                studentID,
-                description,
-                issuedAt: new Date().toISOString()
+                typeId: selectedType.id,
+                typeName: selectedType.label,
+                issuedAt: new Date().toISOString(),
+                ...formData // Spread dynamic fields
             };
 
             // 2. Encrypt Bundle (File + Metadata)
@@ -66,47 +94,49 @@ export default function IssuePage() {
                 <h1 className="text-2xl font-bold mb-6 text-gray-800 text-center">Issue Secure Credential</h1>
 
                 <div className="flex flex-col gap-4">
-                    {/* Metadata Inputs */}
+
+                    {/* 1. Credential Type Selector */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Student Name</label>
-                        <input
-                            type="text"
-                            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="e.g. John Doe"
-                            value={studentName}
-                            onChange={e => setStudentName(e.target.value)}
-                        />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Credential Type</label>
+                        <select
+                            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 bg-white text-gray-500"
+                            value={selectedTypeId}
+                            onChange={(e) => {
+                                setSelectedTypeId(e.target.value);
+                                setFormData({}); // Reset form on type change
+                            }}
+                        >
+                            {activeTemplates.map(type => (
+                                <option key={type.id} value={type.id}>{type.label}</option>
+                            ))}
+                        </select>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Student ID</label>
-                        <input
-                            type="text"
-                            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="e.g. 123456"
-                            value={studentID}
-                            onChange={e => setStudentID(e.target.value)}
-                        />
-                    </div>
+                    <hr className="border-gray-100 my-2 " />
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Description / Course</label>
-                        <textarea
-                            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="e.g. Bachelor of Science in Computer Science"
-                            rows={3}
-                            value={description}
-                            onChange={e => setDescription(e.target.value)}
-                        />
-                    </div>
+                    {/* 2. Dynamic Fields */}
+                    {selectedType.fields.map(field => (
+                        <div key={field.key}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                            <input
+                                type={field.type}
+                                className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none text-gray-500"
+                                placeholder={field.placeholder}
+                                value={formData[field.key] || ""}
+                                onChange={e => handleInputChange(field.key, e.target.value)}
+                            />
+                        </div>
+                    ))}
 
-                    {/* File Input */}
+                    <hr className="border-gray-100 my-2" />
+
+                    {/* 3. File Input */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Credential File (PDF/Image)</label>
                         <input
                             type="file"
                             accept="application/pdf,image/*"
-                            className="w-full border p-2 rounded bg-gray-50"
+                            className="w-full border p-2 rounded bg-gray-50 text-gray-500"
                             onChange={(e) => setFile(e.target?.files?.[0])}
                         />
                     </div>
@@ -115,7 +145,7 @@ export default function IssuePage() {
                     <button
                         className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded mt-2 transition-colors disabled:opacity-50"
                         onClick={handleIssue}
-                        disabled={!file || !studentName}
+                        disabled={!file}
                     >
                         Encrypt & Issue
                     </button>
