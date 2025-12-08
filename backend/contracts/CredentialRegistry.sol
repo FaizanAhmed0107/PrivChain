@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract CredentialRegistry is AccessControl {
-    // Role for Universities who are allowed to issue credentials
+    // Role for those who are allowed to issue credentials
     bytes32 public constant ISSUER_ROLE = keccak256("ISSUER_ROLE");
 
     struct Credential {
@@ -12,38 +12,81 @@ contract CredentialRegistry is AccessControl {
         address issuer;
         address holder;
         uint256 issuanceDate;
+        uint256 validUntil;
         bool isRevoked;
     }
 
     // Mapping: Credential ID => Credential Data
     mapping(bytes32 => Credential) public credentials;
 
-    // NEW: Mapping to store all credentials per holder
+    // Mapping to store all credentials per holder
     mapping(address => bytes32[]) private holderCredentials;
+
+    // Mapping to store all credentials per issuer
+    mapping(address => bytes32[]) private issuerCredentials;
+
+    // Issuer Tracking
+    mapping(address => bool) public isIssuer;
+    address[] public issuerList;
 
     // Events
     event CredentialIssued(
         bytes32 indexed credId,
         address indexed issuer,
-        address indexed holder
+        address indexed holder,
+        uint256 validUntil
     );
     event CredentialRevoked(bytes32 indexed credId, address indexed revokedBy);
-    event UniversityAdded(address indexed university);
+    event IssuerAdded(address indexed issuer);
+    event IssuerRemoved(address indexed issuer);
 
     constructor() {
         // Give deployer admin + issuer role
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ISSUER_ROLE, msg.sender);
+
+        // Track initial issuer
+        isIssuer[msg.sender] = true;
+        issuerList.push(msg.sender);
     }
 
     // -------------------------------
-    // 1. Add a University (Only Admin)
+    // 1. Add an Issuer (Only Admin)
     // -------------------------------
-    function addUniversity(
-        address _university
+    function addIssuer(address _issuer) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        grantRole(ISSUER_ROLE, _issuer);
+
+        if (!isIssuer[_issuer]) {
+            isIssuer[_issuer] = true;
+            issuerList.push(_issuer);
+        }
+
+        emit IssuerAdded(_issuer);
+    }
+
+    // -------------------------------
+    // 1b. Remove an Issuer (Only Admin)
+    // -------------------------------
+    function removeIssuer(
+        address _issuer
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        grantRole(ISSUER_ROLE, _university);
-        emit UniversityAdded(_university);
+        revokeRole(ISSUER_ROLE, _issuer);
+
+        if (isIssuer[_issuer]) {
+            isIssuer[_issuer] = false;
+
+            // Remove from list (swapping with last element)
+            // Note: This changes order but is O(1)
+            for (uint i = 0; i < issuerList.length; i++) {
+                if (issuerList[i] == _issuer) {
+                    issuerList[i] = issuerList[issuerList.length - 1];
+                    issuerList.pop();
+                    break;
+                }
+            }
+
+            emit IssuerRemoved(_issuer);
+        }
     }
 
     // ---------------------------------------
@@ -51,7 +94,8 @@ contract CredentialRegistry is AccessControl {
     // ---------------------------------------
     function issueCredential(
         address _holder,
-        string memory _ipfsHash
+        string memory _ipfsHash,
+        uint256 _validUntil
     ) external onlyRole(ISSUER_ROLE) {
         uint256 timestamp = block.timestamp;
 
@@ -68,13 +112,17 @@ contract CredentialRegistry is AccessControl {
             issuer: msg.sender,
             holder: _holder,
             issuanceDate: timestamp,
+            validUntil: _validUntil,
             isRevoked: false
         });
 
         // Store this credential under holder history
         holderCredentials[_holder].push(credId);
 
-        emit CredentialIssued(credId, msg.sender, _holder);
+        // Store this credential under issuer history
+        issuerCredentials[msg.sender].push(credId);
+
+        emit CredentialIssued(credId, msg.sender, _holder, _validUntil);
     }
 
     // ---------------------------------------
@@ -101,9 +149,17 @@ contract CredentialRegistry is AccessControl {
     // ----------------------------
     function fetchCredential(
         bytes32 _credId
-    ) external view returns (string memory, address, bool) {
+    ) external view returns (string memory, address, address, bool, uint256) {
         Credential memory cred = credentials[_credId];
-        return (cred.ipfsHash, cred.issuer, cred.isRevoked);
+        bool isExpired = (cred.validUntil != 0 &&
+            block.timestamp > cred.validUntil);
+        return (
+            cred.ipfsHash,
+            cred.issuer,
+            cred.holder,
+            cred.isRevoked || isExpired,
+            cred.validUntil
+        );
     }
 
     // ------------------------------------------------------
@@ -111,5 +167,21 @@ contract CredentialRegistry is AccessControl {
     // ------------------------------------------------------
     function getMyCredentials() external view returns (bytes32[] memory) {
         return holderCredentials[msg.sender];
+    }
+
+    // ------------------------------------------------------
+    // 6. NEW — Get ALL credentials issued by a specific address
+    // ------------------------------------------------------
+    function getIssuedCredentials(
+        address _issuer
+    ) external view returns (bytes32[] memory) {
+        return issuerCredentials[_issuer];
+    }
+
+    // ------------------------------------------------------
+    // 7. NEW — Get ALL Issuers
+    // ------------------------------------------------------
+    function getAllIssuers() external view returns (address[] memory) {
+        return issuerList;
     }
 }

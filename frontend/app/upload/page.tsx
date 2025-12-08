@@ -25,6 +25,7 @@ export default function IssuePage() {
     // Dynamic Form State
     const [formData, setFormData] = useState<Record<string, string>>({});
     const [receiverAddress, setReceiverAddress] = useState("");
+    const [validUntil, setValidUntil] = useState("");
 
     const [status, setStatus] = useState("");
     const [resultLink, setResultLink] = useState("");
@@ -89,6 +90,7 @@ export default function IssuePage() {
                 typeName: selectedType.label,
                 issuedAt: new Date().toISOString(),
                 description: `Issued by ${issuerAddress}`,
+                validUntil: validUntil || null,
                 ...formData // Spread dynamic fields
             };
 
@@ -106,7 +108,8 @@ export default function IssuePage() {
 
             // 4. Write to Smart Contract
             setStatus("Waiting for Wallet Signature...");
-            const txResult = await issueCredential(receiverAddress as `0x${string}`, upload.cid);
+            const validUntilTimestamp = validUntil ? BigInt(Math.floor(new Date(validUntil).getTime() / 1000)) : BigInt(0);
+            const txResult = await issueCredential(receiverAddress as `0x${string}`, upload.cid, validUntilTimestamp);
 
             if (!txResult.ok || !txResult.data) {
                 throw new Error(txResult.error || "Transaction failed");
@@ -194,7 +197,21 @@ export default function IssuePage() {
                         />
                     </div>
 
-                    {/* 3. Dynamic Fields */}
+                    {/* 3. Validity Date */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Valid Until (Optional)</label>
+                        <input
+                            type="date"
+                            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none text-gray-500 text-sm"
+                            value={validUntil}
+                            onChange={e => setValidUntil(e.target.value)}
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Leave blank for no expiration.</p>
+                    </div>
+
+                    <hr className="border-gray-100 my-2" />
+
+                    {/* 4. Dynamic Fields */}
                     {selectedType.fields.map(field => (
                         <div key={field.key}>
                             <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
@@ -210,7 +227,7 @@ export default function IssuePage() {
 
                     <hr className="border-gray-100 my-2" />
 
-                    {/* 4. File Input */}
+                    {/* 5. File Input */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Credential File (PDF/Image)</label>
                         <input
