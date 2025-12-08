@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { config } from "@/lib/wagmi";
 // @ts-ignore - allow importing CSS without type declarations
 import "./globals.css";
+import WalletDisconnectButton from "@/components/WalletDisconnectButton";
 
 const queryClient = new QueryClient();
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <QueryClientProvider client={queryClient}>
           <WagmiProvider config={config}>
             {children}
+            <WalletDisconnectButton />
           </WagmiProvider>
         </QueryClientProvider>
       </body>

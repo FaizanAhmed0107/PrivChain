@@ -1,10 +1,13 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { getCredentialDetails } from "@/lib/contract";
 import { useEffect, useState, use } from "react";
 // import { pinata } from "@/utils/config";
 import { decryptBundle } from "@/utils/bundleEncryption";
 import { useTemplates } from "@/hooks/useTemplates";
 import { CredentialType } from "@/utils/credentialTemplates";
+
 
 interface CredentialData {
     metadata: Record<string, any>;
@@ -18,11 +21,25 @@ interface CredentialData {
 export default function ViewPage({ params }: { params: Promise<{ cid: string }> }) {
     // Params needing to be unwrapped
     const { cid } = use(params);
+    const searchParams = useSearchParams();
+    const credId = searchParams.get("id");
+
     const { templates } = useTemplates(); // Fetch all templates (even deprecated)
 
     const [status, setStatus] = useState("Initializing...");
     const [data, setData] = useState<CredentialData | null>(null);
     const [fileUrl, setFileUrl] = useState<string>("");
+    const [isRevoked, setIsRevoked] = useState(false);
+
+    useEffect(() => {
+        if (credId) {
+            getCredentialDetails(credId).then((res) => {
+                if (res.ok && res.data?.isRevoked) {
+                    setIsRevoked(true);
+                }
+            });
+        }
+    }, [credId]);
 
     useEffect(() => {
         const loadCredential = async () => {
@@ -99,9 +116,15 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
     return (
         <main className="w-full min-h-screen p-6 bg-gray-50 flex flex-col items-center">
             {/* Verification Badge */}
-            <div className="bg-green-100 text-green-800 px-6 py-2 rounded-full font-bold mb-8 flex items-center gap-2 shadow-sm">
-                <span>✅</span> Verified Credential
-            </div>
+            {isRevoked ? (
+                <div className="bg-red-100 text-red-800 px-6 py-2 rounded-full font-bold mb-8 flex items-center gap-2 shadow-sm">
+                    <span>❌</span> Revoked Credential
+                </div>
+            ) : (
+                <div className="bg-green-100 text-green-800 px-6 py-2 rounded-full font-bold mb-8 flex items-center gap-2 shadow-sm">
+                    <span>✅</span> Verified Credential
+                </div>
+            )}
 
             <div className="flex flex-col lg:flex-row w-full max-w-6xl gap-6">
 

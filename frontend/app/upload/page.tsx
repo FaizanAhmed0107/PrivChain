@@ -4,10 +4,19 @@ import { useState, useEffect } from "react";
 import { pinata } from "@/utils/config";
 import { encryptBundle } from "@/utils/bundleEncryption";
 import { useTemplates } from "@/hooks/useTemplates";
+import { isAddress } from "viem";
+
+import { supabase } from "@/utils/supabaseClient";
+import { issueCredential } from "@/lib/contract";
+import { useWallet } from "@/lib/wallet";
 
 export default function IssuePage() {
     const { activeTemplates, loading } = useTemplates();
     const [file, setFile] = useState<File>();
+
+    // Wallet & Contract
+    const { address: issuerAddress, isConnected, chainId, connectWallet, switchChain } = useWallet();
+
 
     // Type Selection
     const [selectedTypeId, setSelectedTypeId] = useState("");
@@ -15,6 +24,7 @@ export default function IssuePage() {
 
     // Dynamic Form State
     const [formData, setFormData] = useState<Record<string, string>>({});
+    const [receiverAddress, setReceiverAddress] = useState("");
 
     const [status, setStatus] = useState("");
     const [resultLink, setResultLink] = useState("");
@@ -44,7 +54,25 @@ export default function IssuePage() {
     if (!selectedType) return <p className="text-center mt-20">No Templates Found. Please add one in Admin Panel.</p>;
 
     const handleIssue = async () => {
+        if (!isConnected || !issuerAddress) {
+            connectWallet();
+            return;
+        }
+
+        // Check Network
+        if (chainId !== 31337) {
+            const confirmed = window.confirm("You are on the wrong network. Switch to Hardhat Localhost?");
+            if (confirmed && switchChain) {
+                switchChain({ chainId: 31337 });
+                return;
+            } else if (!switchChain) {
+                alert("Please switch your wallet network to Localhost 8545 manually.");
+                return;
+            }
+        }
+
         if (!file) return alert("Please select a file.");
+        if (!receiverAddress || !isAddress(receiverAddress)) return alert("Please enter a valid Ethereum Receiver Address.");
 
         // Simple validation: check if all required fields are filled
         const missingFields = selectedType.fields.filter(f => !formData[f.key]);
@@ -60,6 +88,7 @@ export default function IssuePage() {
                 typeId: selectedType.id,
                 typeName: selectedType.label,
                 issuedAt: new Date().toISOString(),
+                description: `Issued by ${issuerAddress}`,
                 ...formData // Spread dynamic fields
             };
 
@@ -75,12 +104,36 @@ export default function IssuePage() {
 
             console.log("Uploaded CID:", upload.cid);
 
-            // 4. Generate Magic Link
-            // Format: /view/[CID]#key=...&iv=...
+            // 4. Write to Smart Contract
+            setStatus("Waiting for Wallet Signature...");
+            const txResult = await issueCredential(receiverAddress as `0x${string}`, upload.cid);
+
+            if (!txResult.ok || !txResult.data) {
+                throw new Error(txResult.error || "Transaction failed");
+            }
+
+            const txHash = txResult.data;
+
+            setStatus(`Transaction Sent! Hash: ${txHash}. Saving to Database...`);
+
+            // 5. Store in Supabase
+            const { error: dbError } = await supabase
+                .from("user_credentials")
+                .insert({
+                    receiver_address: receiverAddress,
+                    ipfs_cid: upload.cid,
+                    encryption_key: keyStr,
+                    iv: ivStr,
+                    metadata: metadata
+                });
+
+            if (dbError) throw new Error("Database Error: " + dbError.message);
+
+            // 6. Generate Magic Link (Optional, mostly for immediate sharing)
             const link = `${window.location.origin}/view/${upload.cid}#key=${encodeURIComponent(keyStr)}&iv=${encodeURIComponent(ivStr)}`;
 
             setResultLink(link);
-            setStatus("Success! Credential Issued.");
+            setStatus("Success! Credential Issued & Recorded on Blockchain.");
 
         } catch (e) {
             console.error(e);
@@ -94,6 +147,21 @@ export default function IssuePage() {
                 <h1 className="text-2xl font-bold mb-6 text-gray-800 text-center">Issue Secure Credential</h1>
 
                 <div className="flex flex-col gap-4">
+
+                    {/* 0. Wallet Connection */}
+                    <div className="flex justify-between items-center bg-blue-50 p-3 rounded border border-blue-100 mb-2">
+                        <span className="text-sm text-blue-800">
+                            {isConnected ? `Issuer: ${issuerAddress?.slice(0, 6)}...${issuerAddress?.slice(-4)}` : "Wallet Not Connected"}
+                        </span>
+                        {!isConnected && (
+                            <button
+                                onClick={connectWallet}
+                                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                            >
+                                Connect Wallet
+                            </button>
+                        )}
+                    </div>
 
                     {/* 1. Credential Type Selector */}
                     <div>
@@ -114,7 +182,19 @@ export default function IssuePage() {
 
                     <hr className="border-gray-100 my-2 " />
 
-                    {/* 2. Dynamic Fields */}
+                    {/* 2. Receiver Address */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Receiver ETH Address</label>
+                        <input
+                            type="text"
+                            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none text-gray-500 font-mono text-sm"
+                            placeholder="0x..."
+                            value={receiverAddress}
+                            onChange={e => setReceiverAddress(e.target.value)}
+                        />
+                    </div>
+
+                    {/* 3. Dynamic Fields */}
                     {selectedType.fields.map(field => (
                         <div key={field.key}>
                             <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
@@ -130,7 +210,7 @@ export default function IssuePage() {
 
                     <hr className="border-gray-100 my-2" />
 
-                    {/* 3. File Input */}
+                    {/* 4. File Input */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Credential File (PDF/Image)</label>
                         <input
@@ -145,9 +225,9 @@ export default function IssuePage() {
                     <button
                         className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded mt-2 transition-colors disabled:opacity-50"
                         onClick={handleIssue}
-                        disabled={!file}
+                        disabled={!file || !isConnected}
                     >
-                        Encrypt & Issue
+                        {isConnected ? "Encrypt, Upload & Issue" : "Connect Wallet to Issue"}
                     </button>
                 </div>
 
@@ -157,7 +237,8 @@ export default function IssuePage() {
 
                     {resultLink && (
                         <div className="bg-green-50 border border-green-200 p-4 rounded text-left break-all">
-                            <p className="text-sm text-green-800 font-bold mb-1">Credential Link (Share this with the student):</p>
+                            <p className="text-sm text-green-800 font-bold mb-1">Credential Deployed!</p>
+                            <p className="text-xs text-gray-600 mb-2">Direct Link (for testing):</p>
                             <a href={resultLink} target="_blank" className="text-blue-600 text-sm hover:underline">
                                 {resultLink}
                             </a>
