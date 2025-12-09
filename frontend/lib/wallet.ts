@@ -40,7 +40,8 @@ export function useWallet() {
         const padded = valueStr.padStart(decimals + 1, "0");
         const intPart = padded.slice(0, padded.length - decimals) || "0";
         let fracPart = padded.slice(-decimals);
-        fracPart = fracPart.replace(/0+$/, "");
+        // Truncate to 2 decimals
+        fracPart = fracPart.slice(0, 2);
 
         return `${intPart}${fracPart ? `.${fracPart}` : ""} ${symbol}`.trim();
     };

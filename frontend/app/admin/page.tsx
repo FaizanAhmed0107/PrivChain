@@ -4,8 +4,13 @@ import { useState, useEffect } from "react";
 import { useWallet } from "@/lib/wallet";
 import { useTemplates } from "@/hooks/useTemplates";
 import { CredentialField } from "@/utils/credentialTemplates";
-import { checkIsAdmin, getAllIssuers, addIssuer, removeIssuer } from "@/lib/contract";
+import { getAllIssuers, addIssuer, removeIssuer } from "@/lib/contract";
+import { useUserRole } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
     Shield,
     UserPlus,
@@ -16,17 +21,18 @@ import {
     Lock,
     Loader2,
     AlertTriangle,
+    Plus,
+    Minus
 } from "lucide-react";
+import Link from "next/link";
 
 export default function AdminPage() {
     const { templates, addTemplate, deprecateTemplate } = useTemplates();
     const [showDeprecated, setShowDeprecated] = useState(false);
 
     // Auth State
-    const { address, isConnected, connectWallet } = useWallet();
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [checkingAccess, setCheckingAccess] = useState(false);
-    const [accessError, setAccessError] = useState("");
+    const { address, isConnected } = useWallet();
+    const { isAdmin, loading: loadingRole } = useUserRole();
 
     // Issuer Management State
     const [issuers, setIssuers] = useState<string[]>([]);
@@ -42,38 +48,11 @@ export default function AdminPage() {
     const [tempType, setTempType] = useState<"text" | "date" | "number" | "email">("text");
 
     useEffect(() => {
-        if (isConnected && address) {
-            verifyAdmin();
-        } else {
-            setIsAdmin(false);
-        }
-    }, [isConnected, address]);
-
-    useEffect(() => {
         if (isAdmin) {
             fetchIssuers();
         }
     }, [isAdmin]);
 
-    const verifyAdmin = async () => {
-        if (!address) return;
-        setCheckingAccess(true);
-        try {
-            const { ok, isAdmin: adminStatus, error } = await checkIsAdmin(address);
-            if (ok && adminStatus) {
-                setIsAdmin(true);
-                setAccessError("");
-            } else {
-                setIsAdmin(false);
-                setAccessError("Access Denied: Default Admin Role Required.");
-            }
-        } catch (e) {
-            console.error(e);
-            setAccessError("Failed to verify admin status.");
-        } finally {
-            setCheckingAccess(false);
-        }
-    };
 
     const fetchIssuers = async () => {
         setLoadingIssuers(true);
@@ -86,12 +65,12 @@ export default function AdminPage() {
 
     const handleAddIssuer = async () => {
         if (!newIssuerAddress) return;
-
         try {
             const { ok, error } = await addIssuer(newIssuerAddress);
             if (ok) {
-                alert("Issuer Added (Wait for confirmation)");
+                alert("Issuer Added (Wait for confirmation on chain)");
                 setNewIssuerAddress("");
+                // Optimistic UI or wait? We'll wait a bit then refresh
                 setTimeout(fetchIssuers, 4000);
             } else {
                 alert("Failed: " + error);
@@ -102,7 +81,7 @@ export default function AdminPage() {
     };
 
     const handleRemoveIssuer = async (addr: string) => {
-        if (!confirm(`Remove ${addr}?`)) return;
+        if (!confirm(`Remove access for ${addr}?`)) return;
         const { ok, error } = await removeIssuer(addr);
         if (ok) {
             setTimeout(fetchIssuers, 4000);
@@ -119,7 +98,7 @@ export default function AdminPage() {
     };
 
     const handleCreateTemplate = async () => {
-        if (!newId || !newLabel || newFields.length === 0) return alert("Fill all details");
+        if (!newId || !newLabel || newFields.length === 0) return alert("Please fill all details and add at least one field.");
         const success = await addTemplate({
             id: newId,
             label: newLabel,
@@ -130,170 +109,204 @@ export default function AdminPage() {
             setNewId("");
             setNewLabel("");
             setNewFields([]);
-            alert("Template Created in DB");
+            alert("Template Created!");
         } else {
             alert("Failed to create template");
         }
     };
 
-    if (!isConnected) {
+
+    if (loadingRole) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                <div className="bg-primary/10 p-6 rounded-full mb-6 max-w-min mx-auto">
-                    <Shield className="w-16 h-16 text-primary" />
-                </div>
-                <h2 className="text-3xl font-bold mb-4">Admin Access Required</h2>
-                <button
-                    onClick={connectWallet}
-                    className="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-bold hover:bg-primary/90 transition-colors"
-                >
-                    Connect Wallet
-                </button>
+            <div className="flex h-[80vh] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
 
-    if (checkingAccess) {
+    if (!isConnected) {
         return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Loader2 className="w-10 h-10 animate-spin text-primary" />
-            </div>
+            <main className="w-full h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
+                <div className="bg-primary/5 p-8 rounded-full mb-6 relative">
+                    <Shield className="h-16 w-16 text-primary" />
+                    <Lock className="h-6 w-6 absolute bottom-6 right-6 text-primary bg-background rounded-full p-1" />
+                </div>
+                <h1 className="text-3xl font-bold tracking-tight mb-3">Admin Access Required</h1>
+                <p className="text-muted-foreground max-w-md mb-8">
+                    Connect an accredited admin wallet to access system settings.
+                </p>
+            </main>
         );
     }
 
     if (!isAdmin) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                <div className="bg-destructive/10 p-6 rounded-full mb-6 max-w-min mx-auto">
-                    <AlertTriangle className="w-16 h-16 text-destructive" />
+            <main className="w-full h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
+                <div className="bg-destructive/10 p-8 rounded-full mb-6 text-destructive">
+                    <AlertTriangle className="h-16 w-16" />
                 </div>
-                <h2 className="text-3xl font-bold mb-4 text-destructive">
-                    Access Denied
-                </h2>
-                <p className="text-muted-foreground mb-4">{accessError || "You are not an admin."}</p>
-                <div className="text-xs font-mono bg-secondary p-2 rounded">{address}</div>
-            </div>
+                <h1 className="text-3xl font-bold tracking-tight mb-3 text-destructive">Access Denied</h1>
+                <p className="text-muted-foreground max-w-md mb-4 leading-relaxed">
+                    Account <br /><code className="bg-muted px-2 py-1 rounded font-mono text-sm inline-block my-2">{address}</code><br /> does not have admin privileges.
+                </p>
+                <Button asChild variant="outline">
+                    <Link href="/dashboard">Return to Dashboard</Link>
+                </Button>
+            </main>
         );
     }
 
     return (
-        <div className="max-w-7xl mx-auto space-y-12 animate-in fade-in duration-500 pb-12">
-            <div className="border-b border-border pb-6 flex justify-between items-center">
+        <main className="container mx-auto px-4 py-8 max-w-7xl animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+            <header className="flex justify-between items-end border-b pb-6">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Admin Console</h1>
-                    <p className="text-muted-foreground mt-1">Manage system issuers and templates.</p>
+                    <h1 className="text-3xl font-bold tracking-tight mb-2">Admin Console</h1>
+                    <p className="text-muted-foreground">Manage authorized issuers and system configuration.</p>
                 </div>
-                <div className="text-xs font-mono bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
-                    Admin: {address?.slice(0, 6)}...{address?.slice(-4)}
-                </div>
-            </div>
+                <Badge variant="secondary" className="font-mono">{issuers.length} Active Issuers</Badge>
+            </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* ISSUER MANAGEMENT */}
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <Users className="w-6 h-6 text-primary" />
+                <Card className="h-fit">
+                    <CardHeader className="bg-muted/10">
+                        <CardTitle className="flex items-center gap-2">
+                            <Users className="w-5 h-5 text-primary" />
                             Issuer Management
-                        </h2>
-                    </div>
-
-                    <div className="p-6 rounded-xl border border-border bg-card shadow-sm">
-                        <div className="flex gap-4 mb-6">
-                            <input
-                                className="flex-1 bg-background border border-input rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none"
-                                placeholder="0x..."
+                        </CardTitle>
+                        <CardDescription>Grant or revoke issuer capabilities.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-6">
+                        <div className="flex gap-2">
+                            <Input
+                                placeholder="Issuer Address (0x...)"
+                                className="font-mono flex-1"
                                 value={newIssuerAddress}
                                 onChange={e => setNewIssuerAddress(e.target.value)}
                             />
-                            <button
+                            <Button
                                 onClick={handleAddIssuer}
                                 disabled={!newIssuerAddress}
-                                className={cn("px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium transition-colors flex items-center gap-2", !newIssuerAddress && "opacity-50")}
+                                className="shrink-0"
                             >
-                                <UserPlus className="w-4 h-4" /> Add
-                            </button>
+                                <UserPlus className="w-4 h-4 mr-2" /> Add
+                            </Button>
                         </div>
 
-                        <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                            {loadingIssuers && <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />}
-                            {!loadingIssuers && issuers.length === 0 && <p className="text-sm text-muted-foreground text-center">No issuers found.</p>}
+                        <div className="border rounded-md divide-y max-h-[400px] overflow-y-auto bg-background/50">
+                            {loadingIssuers && <div className="p-4 flex justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>}
+                            {!loadingIssuers && issuers.length === 0 && <p className="p-4 text-sm text-center text-muted-foreground">No authorized issuers found.</p>}
                             {issuers.map(i => (
-                                <div key={i} className="flex justify-between items-center p-3 rounded-lg bg-secondary/50 border border-border">
-                                    <span className="font-mono text-sm truncate max-w-[200px]">{i}</span>
-                                    <button
+                                <div key={i} className="flex justify-between items-center p-3 hover:bg-muted/50 transition-colors group">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                            <Shield className="h-4 w-4 text-primary" />
+                                        </div>
+                                        <span className="font-mono text-xs sm:text-sm text-muted-foreground group-hover:text-foreground transition-colors">{i}</span>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
                                         onClick={() => handleRemoveIssuer(i)}
-                                        className="text-destructive hover:bg-destructive/10 p-2 rounded-md transition-colors"
+                                        className="text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        title="Revoke Access"
                                     >
                                         <UserMinus className="w-4 h-4" />
-                                    </button>
+                                    </Button>
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
 
                 {/* TEMPLATE MANAGEMENT */}
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <FilePlus className="w-6 h-6 text-cyan-400" />
-                            Templates
-                        </h2>
-                        <label className="text-xs flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" checked={showDeprecated} onChange={e => setShowDeprecated(e.target.checked)} />
-                            Show Deprecated
-                        </label>
-                    </div>
+                <Card className="h-fit">
+                    <CardHeader className="bg-muted/10">
+                        <div className="flex justify-between items-center">
+                            <CardTitle className="flex items-center gap-2">
+                                <FilePlus className="w-5 h-5 text-indigo-500" />
+                                Credential Templates
+                            </CardTitle>
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer hover:text-foreground transition-colors">
+                                    <input type="checkbox" className="accent-primary" checked={showDeprecated} onChange={e => setShowDeprecated(e.target.checked)} />
+                                    Show Deprecated
+                                </label>
+                            </div>
+                        </div>
+                        <CardDescription>Define structures for new credentials.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-6">
 
-                    <div className="p-6 rounded-xl border border-border bg-card shadow-sm">
-                        <div className="space-y-4 mb-6 p-4 bg-secondary/20 rounded-lg border border-border/50">
-                            <h3 className="font-semibold text-sm mb-2">Create New</h3>
+                        <div className="p-4 rounded-lg bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 space-y-4">
+                            <h4 className="font-semibold text-sm mb-2 text-indigo-700 dark:text-indigo-400">New Template Definition</h4>
                             <div className="grid grid-cols-2 gap-2">
-                                <input className="bg-background border border-input rounded px-3 py-2 text-sm" placeholder="ID (e.g. visa)" value={newId} onChange={e => setNewId(e.target.value)} />
-                                <input className="bg-background border border-input rounded px-3 py-2 text-sm" placeholder="Label (e.g. Visa)" value={newLabel} onChange={e => setNewLabel(e.target.value)} />
+                                <Input placeholder="Type ID (e.g. visa_v1)" value={newId} onChange={e => setNewId(e.target.value)} />
+                                <Input placeholder="Label (e.g. Tourist Visa)" value={newLabel} onChange={e => setNewLabel(e.target.value)} />
                             </div>
 
-                            <div className="flex gap-2 items-center">
-                                <input className="flex-1 bg-background border px-2 py-1 text-xs rounded" placeholder="Field Key" value={tempKey} onChange={e => setTempKey(e.target.value)} />
-                                <input className="flex-1 bg-background border px-2 py-1 text-xs rounded" placeholder="Label" value={tempLabel} onChange={e => setTempLabel(e.target.value)} />
-                                <select className="bg-background border px-2 py-1 text-xs rounded" value={tempType} onChange={e => setTempType(e.target.value as any)}>
-                                    <option value="text">Text</option>
-                                    <option value="date">Date</option>
-                                    <option value="number">Num</option>
-                                </select>
-                                <button onClick={handleAddField} className="bg-secondary hover:bg-border border px-3 py-1 text-xs rounded">+</button>
+                            <div className="space-y-2">
+                                <div className="text-xs font-semibold uppercase text-muted-foreground">Add Field</div>
+                                <div className="flex gap-2">
+                                    <Input placeholder="Key" className="h-8 text-xs font-mono" value={tempKey} onChange={e => setTempKey(e.target.value)} />
+                                    <Input placeholder="Label" className="h-8 text-xs" value={tempLabel} onChange={e => setTempLabel(e.target.value)} />
+                                    <select
+                                        className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                        value={tempType}
+                                        onChange={e => setTempType(e.target.value as any)}
+                                    >
+                                        <option value="text">Text</option>
+                                        <option value="date">Date</option>
+                                        <option value="number">Num</option>
+                                    </select>
+                                    <Button size="sm" variant="secondary" onClick={handleAddField} className="h-8 w-8 p-0" title="Add Field">
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
 
                             {newFields.length > 0 && (
-                                <div className="text-xs text-muted-foreground bg-background p-2 rounded border border-border">
-                                    {newFields.map(f => f.key).join(", ")}
+                                <div className="flex flex-wrap gap-2 pt-2">
+                                    {newFields.map((f, i) => (
+                                        <Badge key={i} variant="outline" className="bg-background text-indigo-600 border-indigo-200">
+                                            {f.key} <span className="text-[10px] ml-1 opacity-50">({f.type})</span>
+                                        </Badge>
+                                    ))}
                                 </div>
                             )}
 
-                            <button onClick={handleCreateTemplate} disabled={!newId || !newLabel} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-2 rounded text-sm font-bold transition-colors">
+                            <Button onClick={handleCreateTemplate} disabled={!newId || !newLabel} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
                                 Save Template
-                            </button>
+                            </Button>
                         </div>
 
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                             {templates.filter(t => showDeprecated ? true : !t.isDeprecated).map(t => (
-                                <div key={t.id} className={cn("p-3 rounded border flex justify-between items-center", t.isDeprecated ? "bg-muted opacity-60" : "bg-card border-border")}>
+                                <div key={t.id} className={cn("p-3 rounded-lg border flex justify-between items-center transition-all hover:bg-muted/50", t.isDeprecated ? "bg-muted opacity-60 grayscale" : "bg-card")}>
                                     <div>
                                         <p className="font-bold text-sm">{t.label}</p>
-                                        <p className="text-xs text-muted-foreground">{t.fields.length} fields</p>
+                                        <div className="flex gap-2 mt-1">
+                                            <Badge variant="outline" className="text-[10px] h-5">{t.id}</Badge>
+                                            <span className="text-xs text-muted-foreground">{t.fields.length} fields</span>
+                                        </div>
                                     </div>
                                     {!t.isDeprecated && (
-                                        <button onClick={() => deprecateTemplate(t.id)} className="text-destructive text-xs hover:underline">
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => deprecateTemplate(t.id)}
+                                            className="text-destructive hover:bg-destructive/10 h-8"
+                                        >
                                             Deprecate
-                                        </button>
+                                        </Button>
                                     )}
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
+
+                    </CardContent>
+                </Card>
             </div>
-        </div>
+        </main>
     );
 }

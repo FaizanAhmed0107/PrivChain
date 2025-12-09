@@ -5,18 +5,24 @@ import { pinata } from "@/utils/config";
 import { encryptBundle } from "@/utils/bundleEncryption";
 import { useTemplates } from "@/hooks/useTemplates";
 import { isAddress } from "viem";
-
 import { supabase } from "@/utils/supabaseClient";
 import { issueCredential } from "@/lib/contract";
 import { useWallet } from "@/lib/wallet";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, UploadCloud, FileText, CheckCircle, ExternalLink, AlertTriangle } from "lucide-react";
+import Link from "next/link";
 
 export default function IssuePage() {
-    const { activeTemplates, loading } = useTemplates();
+    const { activeTemplates, loading: loadingTemplates } = useTemplates();
     const [file, setFile] = useState<File>();
 
-    // Wallet & Contract
-    const { address: issuerAddress, isConnected, chainId, connectWallet, switchChain } = useWallet();
-
+    // Wallet & Role
+    const { address: issuerAddress, isConnected, chainId, switchChain } = useWallet();
+    const { isIssuer, loading: loadingRole } = useUserRole();
 
     // Type Selection
     const [selectedTypeId, setSelectedTypeId] = useState("");
@@ -28,6 +34,7 @@ export default function IssuePage() {
     const [validUntil, setValidUntil] = useState("");
 
     const [status, setStatus] = useState("");
+    const [isIssuing, setIsIssuing] = useState(false);
     const [resultLink, setResultLink] = useState("");
 
     // Set default selection once templates load
@@ -38,10 +45,7 @@ export default function IssuePage() {
     }, [activeTemplates, selectedTypeId]);
 
     const handleInputChange = (key: string, value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            [key]: value
-        }));
+        setFormData(prev => ({ ...prev, [key]: value }));
     };
 
     const getSignedUrl = async () => {
@@ -50,39 +54,79 @@ export default function IssuePage() {
         return res.url;
     };
 
-    // Loading Guard
-    if (loading) return <p className="text-center mt-20">Loading Templates...</p>;
-    if (!selectedType) return <p className="text-center mt-20">No Templates Found. Please add one in Admin Panel.</p>;
+    // Guard Clauses
+    if (loadingTemplates || loadingRole) {
+        return (
+            <div className="flex h-[80vh] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    if (!isConnected) {
+        return (
+            <main className="w-full h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
+                <div className="bg-primary/5 p-8 rounded-full mb-6">
+                    <UploadCloud className="h-16 w-16 text-primary" />
+                </div>
+                <h1 className="text-3xl font-bold tracking-tight mb-3">Issuer Access Required</h1>
+                <p className="text-muted-foreground max-w-md mb-8">
+                    Connect your wallet to verify issuer status and issue credentials.
+                </p>
+            </main>
+        );
+    }
+
+    if (!isIssuer) {
+        return (
+            <main className="w-full h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
+                <div className="bg-destructive/10 p-8 rounded-full mb-6">
+                    <AlertTriangle className="h-16 w-16 text-destructive" />
+                </div>
+                <h1 className="text-3xl font-bold tracking-tight mb-3 text-destructive">Access Denied</h1>
+                <p className="text-muted-foreground max-w-md mb-4">
+                    Your address <code className="bg-muted px-1 py-0.5 rounded text-xs">{issuerAddress}</code> is not an authorized issuer.
+                </p>
+                <Button asChild variant="outline">
+                    <Link href="/dashboard">Return to Dashboard</Link>
+                </Button>
+            </main>
+        );
+    }
+
+    if (!selectedType) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+                <p className="text-muted-foreground">No credential templates found. Please contact an admin.</p>
+            </div>
+        );
+    }
 
     const handleIssue = async () => {
-        if (!isConnected || !issuerAddress) {
-            connectWallet();
-            return;
-        }
-
         // Check Network
         if (chainId !== 31337) {
-            const confirmed = window.confirm("You are on the wrong network. Switch to Hardhat Localhost?");
-            if (confirmed && switchChain) {
-                switchChain({ chainId: 31337 });
-                return;
-            } else if (!switchChain) {
-                alert("Please switch your wallet network to Localhost 8545 manually.");
-                return;
+            if (switchChain) {
+                // Try switch, if fails prompt user
+                try {
+                    switchChain({ chainId: 31337 });
+                    return;
+                } catch (e) { /* ignore */ }
             }
+            alert("Please switch your wallet network to Localhost 8545 manually.");
+            return;
         }
 
         if (!file) return alert("Please select a file.");
         if (!receiverAddress || !isAddress(receiverAddress)) return alert("Please enter a valid Ethereum Receiver Address.");
 
-        // Simple validation: check if all required fields are filled
         const missingFields = selectedType.fields.filter(f => !formData[f.key]);
         if (missingFields.length > 0) {
             return alert(`Missing fields: ${missingFields.map(f => f.label).join(", ")}`);
         }
 
         try {
-            setStatus("Preparing and Encrypting Bundle...");
+            setIsIssuing(true);
+            setStatus("Preparing metadata & Encrypting...");
 
             // 1. Prepare Metadata
             const metadata = {
@@ -91,23 +135,21 @@ export default function IssuePage() {
                 issuedAt: new Date().toISOString(),
                 description: `Issued by ${issuerAddress}`,
                 validUntil: validUntil || null,
-                ...formData // Spread dynamic fields
+                ...formData
             };
 
-            // 2. Encrypt Bundle (File + Metadata)
+            // 2. Encrypt Bundle
             const { encryptedBlob, keyStr, ivStr } = await encryptBundle(file, metadata);
 
             // 3. Upload to IPFS
-            setStatus("Uploading to IPFS...");
+            setStatus("Uploading encrypted bundle to IPFS...");
             const uploadUrl = await getSignedUrl();
             const upload = await pinata.upload.public
                 .file(new File([encryptedBlob], "credential.enc"))
                 .url(uploadUrl);
 
-            console.log("Uploaded CID:", upload.cid);
-
             // 4. Write to Smart Contract
-            setStatus("Waiting for Wallet Signature...");
+            setStatus("Waiting for wallet signature...");
             const validUntilTimestamp = validUntil ? BigInt(Math.floor(new Date(validUntil).getTime() / 1000)) : BigInt(0);
             const txResult = await issueCredential(receiverAddress as `0x${string}`, upload.cid, validUntilTimestamp);
 
@@ -116,10 +158,9 @@ export default function IssuePage() {
             }
 
             const credId = txResult.data;
+            setStatus("Saving to database...");
 
-            setStatus(`Credential Issued! ID: ${credId}. Saving to Database...`);
-
-            // 5. Store in Supabase -- we can store both IPFS CID and CredID if valid
+            // 5. Store in Supabase
             const { error: dbError } = await supabase
                 .from("user_credentials")
                 .insert({
@@ -133,137 +174,169 @@ export default function IssuePage() {
 
             if (dbError) throw new Error("Database Error: " + dbError.message);
 
-            // 6. Generate Magic Link (Use CredID now, not IPFS CID)
+            // 6. Generate Link
             const link = `${window.location.origin}/view/${upload.cid}?id=${credId}#key=${encodeURIComponent(keyStr)}&iv=${encodeURIComponent(ivStr)}`;
-
             setResultLink(link);
-            setStatus("Success! Credential Issued & Recorded on Blockchain.");
+            setStatus("Success! Credential Issued.");
 
         } catch (e) {
             console.error(e);
             setStatus("Error: " + (e as Error).message);
+        } finally {
+            setIsIssuing(false);
         }
     };
 
     return (
-        <main className="w-full min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
-            <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-lg">
-                <h1 className="text-2xl font-bold mb-6 text-gray-800 text-center">Issue Secure Credential</h1>
+        <main className="container mx-auto px-4 py-8 max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <header className="mb-8 text-center">
+                <h1 className="text-3xl font-bold tracking-tight mb-2">Issue Credential</h1>
+                <p className="text-muted-foreground">Fill in the details below to issue a verifiable credential.</p>
+            </header>
 
-                <div className="flex flex-col gap-4">
-
-                    {/* 0. Wallet Connection */}
-                    <div className="flex justify-between items-center bg-blue-50 p-3 rounded border border-blue-100 mb-2">
-                        <span className="text-sm text-blue-800">
-                            {isConnected ? `Issuer: ${issuerAddress?.slice(0, 6)}...${issuerAddress?.slice(-4)}` : "Wallet Not Connected"}
-                        </span>
-                        {!isConnected && (
-                            <button
-                                onClick={connectWallet}
-                                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+            <Card className="border-primary/10 shadow-lg">
+                <CardHeader className="bg-muted/30 pb-4">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-primary" />
+                        Credential Details
+                    </CardTitle>
+                    <CardDescription>
+                        All data will be encrypted and stored on IPFS.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 pt-6">
+                    {/* Credential Type Selector */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Credential Type
+                        </label>
+                        <div className="relative">
+                            <select
+                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                                value={selectedTypeId}
+                                onChange={(e) => {
+                                    setSelectedTypeId(e.target.value);
+                                    setFormData({});
+                                }}
                             >
-                                Connect Wallet
-                            </button>
-                        )}
+                                {activeTemplates.map(type => (
+                                    <option key={type.id} value={type.id}>{type.label}</option>
+                                ))}
+                            </select>
+                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                                <svg className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* 1. Credential Type Selector */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Credential Type</label>
-                        <select
-                            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 bg-white text-gray-500"
-                            value={selectedTypeId}
-                            onChange={(e) => {
-                                setSelectedTypeId(e.target.value);
-                                setFormData({}); // Reset form on type change
-                            }}
-                        >
-                            {activeTemplates.map(type => (
-                                <option key={type.id} value={type.id}>{type.label}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <hr className="border-gray-100 my-2 " />
-
-                    {/* 2. Receiver Address */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Receiver ETH Address</label>
-                        <input
-                            type="text"
-                            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none text-gray-500 font-mono text-sm"
-                            placeholder="0x..."
-                            value={receiverAddress}
-                            onChange={e => setReceiverAddress(e.target.value)}
-                        />
-                    </div>
-
-                    {/* 3. Validity Date */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Valid Until (Optional)</label>
-                        <input
-                            type="date"
-                            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none text-gray-500 text-sm"
-                            value={validUntil}
-                            onChange={e => setValidUntil(e.target.value)}
-                        />
-                        <p className="text-xs text-gray-400 mt-1">Leave blank for no expiration.</p>
-                    </div>
-
-                    <hr className="border-gray-100 my-2" />
-
-                    {/* 4. Dynamic Fields */}
-                    {selectedType.fields.map(field => (
-                        <div key={field.key}>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-                            <input
-                                type={field.type}
-                                className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none text-gray-500"
-                                placeholder={field.placeholder}
-                                value={formData[field.key] || ""}
-                                onChange={e => handleInputChange(field.key, e.target.value)}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {/* Receiver Address */}
+                        <div className="space-y-2 sm:col-span-2">
+                            <label className="text-sm font-medium leading-none">Receiver Address (0x...)</label>
+                            <Input
+                                placeholder="0x..."
+                                className="font-mono"
+                                value={receiverAddress}
+                                onChange={e => setReceiverAddress(e.target.value)}
                             />
                         </div>
-                    ))}
 
-                    <hr className="border-gray-100 my-2" />
+                        {/* Validity Date */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium leading-none">Valid Until (Optional)</label>
+                            <Input
+                                type="date"
+                                value={validUntil}
+                                onChange={e => setValidUntil(e.target.value)}
+                            />
+                        </div>
+                    </div>
 
-                    {/* 5. File Input */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Credential File (PDF/Image)</label>
-                        <input
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">Template Fields</span>
+                        </div>
+                    </div>
+
+                    {/* Dynamic Fields */}
+                    <div className="space-y-4">
+                        {selectedType.fields.map(field => (
+                            <div key={field.key} className="space-y-2">
+                                <label className="text-sm font-medium leading-none">{field.label}</label>
+                                <Input
+                                    type={field.type}
+                                    placeholder={field.placeholder}
+                                    value={formData[field.key] || ""}
+                                    onChange={e => handleInputChange(field.key, e.target.value)}
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">Attachment</span>
+                        </div>
+                    </div>
+
+                    {/* File Input */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium leading-none">Credential File (PDF/Image)</label>
+                        <Input
                             type="file"
                             accept="application/pdf,image/*"
-                            className="w-full border p-2 rounded bg-gray-50 text-gray-500"
+                            className="cursor-pointer file:bg-primary/10 file:text-primary file:border-0 file:rounded-md file:mr-4 file:px-2 file:py-0.5"
                             onChange={(e) => setFile(e.target?.files?.[0])}
                         />
                     </div>
 
-                    {/* Action */}
-                    <button
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded mt-2 transition-colors disabled:opacity-50"
+                </CardContent>
+                <CardFooter className="flex flex-col gap-4 bg-muted/10 pt-6">
+                    <Button
+                        className="w-full h-11 text-base"
                         onClick={handleIssue}
-                        disabled={!file || !isConnected}
+                        disabled={isIssuing || !file}
                     >
-                        {isConnected ? "Encrypt, Upload & Issue" : "Connect Wallet to Issue"}
-                    </button>
-                </div>
-
-                {/* Status & Result */}
-                <div className="mt-6 text-center">
-                    <p className="text-sm text-gray-600 mb-2">{status}</p>
+                        {isIssuing ? (
+                            <>
+                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                {status || "Processing..."}
+                            </>
+                        ) : (
+                            "Issue Credential"
+                        )}
+                    </Button>
 
                     {resultLink && (
-                        <div className="bg-green-50 border border-green-200 p-4 rounded text-left break-all">
-                            <p className="text-sm text-green-800 font-bold mb-1">Credential Deployed!</p>
-                            <p className="text-xs text-gray-600 mb-2">Direct Link (for testing):</p>
-                            <a href={resultLink} target="_blank" className="text-blue-600 text-sm hover:underline">
+                        <div className="w-full p-4 rounded-lg bg-green-500/10 border border-green-500/20 animate-in zoom-in-50 duration-300">
+                            <div className="flex items-center gap-2 mb-2">
+                                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                <span className="font-bold text-green-700 dark:text-green-300">Successfully Issued!</span>
+                            </div>
+                            <div className="bg-background/50 p-2 rounded text-xs font-mono break-all border border-border/50 select-all">
                                 {resultLink}
-                            </a>
+                            </div>
+                            <Button
+                                variant="link"
+                                className="h-auto p-0 mt-2 text-green-600 dark:text-green-400"
+                                onClick={() => window.open(resultLink, '_blank')}
+                            >
+                                Open Link <ExternalLink className="ml-1 h-3 w-3" />
+                            </Button>
                         </div>
                     )}
-                </div>
-            </div>
+
+                    {!resultLink && status && !isIssuing && (
+                        <p className="text-sm text-destructive text-center w-full">{status}</p>
+                    )}
+                </CardFooter>
+            </Card>
         </main>
     );
 }

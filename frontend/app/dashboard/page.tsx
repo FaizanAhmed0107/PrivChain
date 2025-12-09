@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useConnect } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { useAccount } from "wagmi";
 import { supabase } from "@/utils/supabaseClient";
 import Link from "next/link";
 import {
     getMyCredentials,
     getCredentialDetails,
-    checkIsIssuer,
     getIssuedCredentials,
     revokeCredential
 } from "@/lib/contract";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Copy, ExternalLink, ShieldAlert, Loader2, Inbox } from "lucide-react";
 
 interface EncryptedCredential {
     id: string;
@@ -33,62 +36,42 @@ interface EncryptedCredential {
 
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
-    const { connect } = useConnect();
+    const { isIssuer } = useUserRole();
 
     const [credentials, setCredentials] = useState<EncryptedCredential[]>([]);
-    const [issuedCredentials, setIssuedCredentials] = useState<EncryptedCredential[]>([]); // New state for issued creds
+    const [issuedCredentials, setIssuedCredentials] = useState<EncryptedCredential[]>([]);
     const [loading, setLoading] = useState(false);
-    const [isIssuer, setIsIssuer] = useState(false); // New state for issuer check
     const [error, setError] = useState("");
 
-
-    // ... (existing imports)
-
-    // Fetch credentials when address changes
     useEffect(() => {
         if (isConnected && address) {
-            checkIssuerStatus(address);
             fetchCredentials(address);
-
+            if (isIssuer) {
+                fetchIssuedCredentials(address);
+            }
         } else {
             setCredentials([]);
             setIssuedCredentials([]);
-            setIsIssuer(false);
         }
-    }, [address, isConnected]);
-
-    // Check if the connected user is an issuer
-    const checkIssuerStatus = async (userAddress: string) => {
-        const result = await checkIsIssuer(userAddress);
-        if (result.ok && result.isIssuer) {
-            setIsIssuer(true);
-            fetchIssuedCredentials(userAddress);
-        } else {
-            setIsIssuer(false);
-        }
-    }
+    }, [address, isConnected, isIssuer]);
 
     const fetchCredentials = async (walletAddress: string) => {
         try {
             setLoading(true);
             setError("");
 
-            // 1. Get IDs from Blockchain
             const result = await getMyCredentials();
             if (!result.ok || !result.data) {
-                // If it fails (e.g. no wallet or network error), just fallback to empty or error
-                console.error("Blockchain fetch failed:", result.error);
-                throw new Error("Failed to fetch credentials from blockchain.");
+                setCredentials([]);
+                return;
             }
 
             const credentialIds = result.data as string[];
-
             if (!credentialIds || credentialIds.length === 0) {
                 setCredentials([]);
                 return;
             }
 
-            // 2. Resolve Details for each ID
             const blockchainCreds = await Promise.all(
                 credentialIds.map(async (id) => {
                     const details = await getCredentialDetails(id);
@@ -99,39 +82,29 @@ export default function DashboardPage() {
                 })
             );
 
-            // Filter out failures
             const validCreds = blockchainCreds.filter(c => c !== null);
-
             if (validCreds.length === 0) {
                 setCredentials([]);
                 return;
             }
 
-            // 3. Enrich from Supabase (to get keys/metadata)
             const cids = validCreds.map(c => c!.ipfsHash);
-
-            const { data: supabaseData, error: sbError } = await supabase
+            const { data: supabaseData } = await supabase
                 .from("user_credentials")
                 .select("*")
                 .in("ipfs_cid", cids);
 
-            if (sbError) throw sbError;
-
-            // Merge Blockchain Data with Supabase Metadata
             const finalCredentials = validCreds.map(bc => {
                 const meta = supabaseData?.find(sd => sd.ipfs_cid === bc!.ipfsHash);
-
-                // If we don't have metadata/keys locally, we can't fully display it securely or with rich text
-                // For now, we only show ones we can decrypt/describe
                 if (!meta) return null;
 
                 return {
-                    id: bc!.id, // Blockchain Credential ID
-                    created_at: meta.created_at, // Use Supabase time or fetch block time if critical
+                    id: bc!.id,
+                    created_at: meta.created_at,
                     ipfs_cid: bc!.ipfsHash,
                     encryption_key: meta.encryption_key,
                     iv: meta.iv,
-                    isRevoked: bc!.isRevoked, // Add isRevoked status
+                    isRevoked: bc!.isRevoked,
                     validUntil: bc!.validUntil,
                     holder: bc!.holder,
                     issuer: bc!.issuer,
@@ -150,12 +123,8 @@ export default function DashboardPage() {
 
     const fetchIssuedCredentials = async (walletAddress: string) => {
         try {
-            // 1. Get IDs of issued credentials
             const result = await getIssuedCredentials();
-            if (!result.ok || !result.data) {
-                console.error("Failed to fetch issued credentials:", result.error);
-                return;
-            }
+            if (!result.ok || !result.data) return;
 
             const credentialIds = result.data as string[];
             if (!credentialIds || credentialIds.length === 0) {
@@ -163,7 +132,6 @@ export default function DashboardPage() {
                 return;
             }
 
-            // 2. Resolve Details
             const blockchainCreds = await Promise.all(
                 credentialIds.map(async (id) => {
                     const details = await getCredentialDetails(id);
@@ -175,43 +143,30 @@ export default function DashboardPage() {
             );
 
             const validCreds = blockchainCreds.filter(c => c !== null);
-
-            if (validCreds.length === 0) {
-                setIssuedCredentials([]);
-                return;
-            }
-
-            // 3. Enrich from Supabase
             const cids = validCreds.map(c => c!.ipfsHash);
 
-            const { data: supabaseData, error: sbError } = await supabase
+            const { data: supabaseData } = await supabase
                 .from("user_credentials")
                 .select("*")
                 .in("ipfs_cid", cids);
 
             const finalIssuedCredentials = validCreds.map(bc => {
                 const meta = supabaseData?.find(sd => sd.ipfs_cid === bc!.ipfsHash);
-
-                // For issued credentials, strictly speaking, we might not have the encryption key if we didn't store it
-                // But usually the issuer does. If not present, we can still show the ID and revocation status.
-                // We'll try to form the object.
-
                 return {
                     id: bc!.id,
-                    created_at: meta?.created_at || new Date().toISOString(), // Fallback
+                    created_at: meta?.created_at || new Date().toISOString(),
                     ipfs_cid: bc!.ipfsHash,
-                    encryption_key: meta?.encryption_key || "", // Might be empty if not in DB
+                    encryption_key: meta?.encryption_key || "",
                     iv: meta?.iv || "",
                     isRevoked: bc!.isRevoked,
                     validUntil: bc!.validUntil,
                     holder: bc!.holder,
                     issuer: bc!.issuer,
-                    metadata: meta?.metadata || { typeName: "Issued Credential", description: "No metadata found locally" }
+                    metadata: meta?.metadata || { typeName: "Issued Credential", description: "No metadata found" }
                 };
             });
 
             setIssuedCredentials(finalIssuedCredentials);
-
         } catch (e) {
             console.error("Error fetching issued credentials", e);
         }
@@ -219,13 +174,11 @@ export default function DashboardPage() {
 
     const handleRevoke = async (credId: string) => {
         if (!confirm("Are you sure you want to revoke this credential? This action cannot be undone.")) return;
-
         try {
             setLoading(true);
             const result = await revokeCredential(credId);
             if (result.ok) {
                 alert("Credential Revoked Successfully!");
-                // Refresh lists
                 if (address) {
                     fetchCredentials(address);
                     fetchIssuedCredentials(address);
@@ -235,182 +188,178 @@ export default function DashboardPage() {
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to revoke credential.");
+            alert("Failed to revoke: " + (e as any).message);
         } finally {
             setLoading(false);
         }
     }
 
+    const copyLink = (cred: EncryptedCredential) => {
+        const link = `${window.location.origin}/view/${cred.ipfs_cid}?id=${cred.id}#key=${encodeURIComponent(cred.encryption_key)}&iv=${encodeURIComponent(cred.iv)}`;
+        navigator.clipboard.writeText(link);
+        alert("Link copied to clipboard!");
+    };
+
+    if (!isConnected) {
+        return (
+            <main className="w-full min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
+                <div className="bg-primary/5 p-8 rounded-full mb-6 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-primary/10 scale-0 group-hover:scale-100 transition-transform duration-500 rounded-full" />
+                    <ShieldAlert className="h-16 w-16 text-primary relative z-10" />
+                </div>
+                <h1 className="text-3xl font-bold tracking-tight mb-3">Welcome to ZK Credential</h1>
+                <p className="text-muted-foreground max-w-md mb-8">
+                    Connect your wallet to access your secure, verifiable credentials stored on the blockchain.
+                </p>
+                {/* Button hidden here because it's in the Navbar primarily, but we can add a visual call to action */}
+                <div className="p-4 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-lg text-sm font-medium border border-yellow-500/20">
+                    ← Use the Connect Wallet button in the top right to get started.
+                </div>
+            </main>
+        );
+    }
+
     return (
-        <main className="w-full min-h-screen bg-gray-50 p-6">
-            <div className="max-w-4xl mx-auto">
-                <header className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-800">My Credentials</h1>
+        <main className="container mx-auto px-4 py-8 max-w-7xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <header className="mb-10">
+                <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+                    My Credentials
+                    {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+                </h1>
+                <p className="text-muted-foreground mt-2">Manage and view your verified credentials.</p>
+                {error && <p className="text-destructive mt-2 text-sm">Error: {error}</p>}
+            </header>
 
-                    {/* Wallet Connection / Status */}
-                    {isConnected ? (
-                        <div className="flex items-center gap-4">
-                            <span className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full border border-blue-200">
-                                {address?.slice(0, 6)}...{address?.slice(-4)}
-                            </span>
-                            {isIssuer && <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded border border-purple-200 font-medium">Issuer</span>}
+            {/* Received Credentials */}
+            <section className="mb-12">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                        <Inbox className="h-5 w-5 text-primary" /> Received
+                    </h2>
+                    <Badge variant="outline">{credentials.length} Items</Badge>
+                </div>
+
+                {credentials.length === 0 && !loading ? (
+                    <div className="flex flex-col items-center justify-center py-16 border rounded-xl bg-muted/20 border-dashed border-muted text-center">
+                        <Inbox className="h-10 w-10 text-muted-foreground opacity-50 mb-3" />
+                        <p className="text-muted-foreground font-medium">No credentials found</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {credentials.map(cred => (
+                            <CredentialCard key={cred.id} cred={cred} onCopy={() => copyLink(cred)} />
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            {/* Issued Credentials (Issuer Only) */}
+            {isIssuer && (
+                <section>
+                    <div className="flex items-center justify-between mb-6 border-t pt-10">
+                        <h2 className="text-xl font-semibold flex items-center gap-2">
+                            <ShieldAlert className="h-5 w-5 text-indigo-500" /> Issued by Me
+                        </h2>
+                        <Badge variant="secondary" className="bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20">
+                            {issuedCredentials.length} Issued
+                        </Badge>
+                    </div>
+
+                    {issuedCredentials.length === 0 && !loading ? (
+                        <div className="flex flex-col items-center justify-center py-16 border rounded-xl bg-muted/20 border-dashed border-muted text-center">
+                            <p className="text-muted-foreground">You haven't issued any credentials yet.</p>
                         </div>
                     ) : (
-                        <button
-                            onClick={() => connect({ connector: injected() })}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-colors"
-                        >
-                            Connect Wallet to View
-                        </button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {issuedCredentials.map(cred => (
+                                <CredentialCard
+                                    key={cred.id}
+                                    cred={cred}
+                                    isIssuerView
+                                    onRevoke={() => handleRevoke(cred.id)}
+                                    onCopy={() => copyLink(cred)}
+                                />
+                            ))}
+                        </div>
                     )}
-                </header>
+                </section>
+            )}
+        </main>
+    );
+}
 
-                <div className="bg-white p-6 rounded-xl shadow-sm min-h-[400px]">
-                    {!isConnected ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center mt-20">
-                            <div className="text-6xl mb-4">🔐</div>
-                            <h2 className="text-xl font-semibold text-gray-700 mb-2">Wallet Disconnected</h2>
-                            <p className="text-gray-500 max-w-sm mx-auto">
-                                Please connect your Ethereum wallet to access your secured credentials.
-                            </p>
-                        </div>
-                    ) : loading ? (
-                        <p className="text-center text-gray-500 mt-20 animate-pulse">Loading Credentials...</p>
-                    ) : error ? (
-                        <p className="text-center text-red-500 mt-20">Error: {error}</p>
+function CredentialCard({
+    cred,
+    isIssuerView = false,
+    onRevoke,
+    onCopy
+}: {
+    cred: EncryptedCredential,
+    isIssuerView?: boolean,
+    onRevoke?: () => void,
+    onCopy: () => void
+}) {
+    return (
+        <Card className={`group transition-all hover:shadow-lg hover:border-primary/50 flex flex-col justify-between overflow-hidden ${cred.isRevoked ? 'bg-destructive/5 border-destructive/30' : ''}`}>
+            <CardHeader className="pb-3">
+                <div className="flex justify-between items-start gap-2">
+                    <CardTitle className={`truncate text-lg leading-tight ${cred.isRevoked ? 'text-destructive line-through decoration-2' : ''}`}>
+                        {cred.metadata.typeName}
+                    </CardTitle>
+                    {cred.isRevoked ? (
+                        <Badge variant="destructive" className="shrink-0 uppercase text-[10px]">Revoked</Badge>
                     ) : (
-                        <div className="space-y-12">
-                            {/* Received Credentials Section */}
-                            <section>
-                                <h2 className="text-xl font-bold text-gray-700 mb-4">Received Credentials</h2>
-                                {credentials.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-10 text-center border-2 border-dashed border-gray-100 rounded-lg">
-                                        <div className="text-4xl mb-2">📭</div>
-                                        <p className="text-gray-500">You haven't received any credentials yet.</p>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {credentials.map(cred => (
-                                            <div key={cred.id} className={`border rounded-lg p-5 hover:shadow-md transition-shadow flex flex-col justify-between ${cred.isRevoked ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
-                                                <div>
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <h3 className={`text-lg font-bold truncate ${cred.isRevoked ? 'text-red-800' : 'text-gray-800'}`}>
-                                                            {cred.metadata.typeName}
-                                                        </h3>
-                                                        <div className="flex gap-2">
-                                                            {cred.isRevoked && <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded font-bold">REVOKED</span>}
-                                                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
-                                                                {new Date(cred.created_at).toLocaleDateString()}
-                                                            </span>
-                                                        </div>
-                                                    </div>
+                        <Badge variant="outline" className="shrink-0 bg-background text-[10px] text-muted-foreground">Valid</Badge>
+                    )}
+                </div>
+                <CardDescription className="line-clamp-2 text-xs mt-1">
+                    {cred.metadata.description}
+                </CardDescription>
+            </CardHeader>
 
-                                                    {cred.metadata.description && (
-                                                        <p className="text-sm text-gray-500 mb-4 line-clamp-2">
-                                                            {cred.metadata.description}
-                                                        </p>
-                                                    )}
-
-                                                    {cred.validUntil > BigInt(0) && (
-                                                        <div className="mb-2">
-                                                            <span className="text-xs text-gray-400 font-semibold uppercase">Valid Until: </span>
-                                                            <span className="text-xs text-gray-600">
-                                                                {new Date(Number(cred.validUntil) * 1000).toLocaleDateString()}
-                                                            </span>
-                                                        </div>
-                                                    )}
-
-                                                    <div className="text-xs text-mono text-gray-400 mb-4 truncate">
-                                                        CID: {cred.ipfs_cid}
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex gap-2 mt-2">
-                                                    <Link
-                                                        href={`/view/${cred.ipfs_cid}?id=${cred.id}#key=${encodeURIComponent(cred.encryption_key)}&iv=${encodeURIComponent(cred.iv)}`}
-                                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-center py-2 rounded text-sm font-medium transition-colors"
-                                                    >
-                                                        View
-                                                    </Link>
-                                                    <button
-                                                        onClick={() => {
-                                                            const link = `${window.location.origin}/view/${cred.ipfs_cid}?id=${cred.id}#key=${encodeURIComponent(cred.encryption_key)}&iv=${encodeURIComponent(cred.iv)}`;
-                                                            navigator.clipboard.writeText(link);
-                                                            alert("Link copied to clipboard!");
-                                                        }}
-                                                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-sm font-medium transition-colors"
-                                                        title="Copy Share Link"
-                                                    >
-                                                        🔗
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </section>
-
-                            {/* Issued Credentials Section (Only for Issuers) */}
-                            {isIssuer && (
-                                <section>
-                                    <h2 className="text-xl font-bold text-gray-700 mb-4 border-t pt-8">Issued Credentials</h2>
-                                    {issuedCredentials.length === 0 ? (
-                                        <p className="text-gray-500 italic">You haven't issued any credentials yet.</p>
-                                    ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {issuedCredentials.map(cred => (
-                                                <div key={cred.id} className={`border rounded-lg p-5 hover:shadow-md transition-shadow flex flex-col justify-between ${cred.isRevoked ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
-                                                    <div>
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <h3 className={`text-lg font-bold truncate ${cred.isRevoked ? 'text-red-800' : 'text-gray-800'}`}>
-                                                                {cred.metadata.typeName}
-                                                            </h3>
-                                                            {cred.isRevoked && <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded font-bold">REVOKED</span>}
-                                                        </div>
-                                                        <p className="text-sm text-gray-600 mb-2">
-                                                            <strong>Holder:</strong> <span className="font-mono text-xs">{cred.holder}</span>
-                                                        </p>
-
-                                                        {cred.validUntil > BigInt(0) && (
-                                                            <div className="mb-2">
-                                                                <span className="text-xs text-gray-400 font-semibold uppercase">Valid Until: </span>
-                                                                <span className="text-xs text-gray-600">
-                                                                    {new Date(Number(cred.validUntil) * 1000).toLocaleDateString()}
-                                                                </span>
-                                                            </div>
-                                                        )}
-
-                                                        <p className="text-xs text-gray-400 mb-4 truncate">
-                                                            CID: {cred.ipfs_cid}
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="flex gap-2 mt-2">
-                                                        <Link
-                                                            href={`/view/${cred.ipfs_cid}?id=${cred.id}#key=${encodeURIComponent(cred.encryption_key)}&iv=${encodeURIComponent(cred.iv)}`}
-                                                            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-center py-2 rounded text-sm font-medium transition-colors"
-                                                        >
-                                                            View Details
-                                                        </Link>
-                                                        {!cred.isRevoked && (
-                                                            <button
-                                                                onClick={() => handleRevoke(cred.id)}
-                                                                className="flex-1 bg-red-500 hover:bg-red-600 text-white text-center py-2 rounded text-sm font-medium transition-colors"
-                                                            >
-                                                                Revoke
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </section>
-                            )}
+            <CardContent className="pb-3 text-xs space-y-2">
+                <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                    <div>
+                        <span className="block font-semibold uppercase text-[10px] tracking-wider opacity-70">Issued</span>
+                        <span className="font-mono">{new Date(cred.created_at).toLocaleDateString()}</span>
+                    </div>
+                    {cred.validUntil > BigInt(0) && (
+                        <div>
+                            <span className="block font-semibold uppercase text-[10px] tracking-wider opacity-70">Expires</span>
+                            <span className="font-mono text-orange-500/80">
+                                {new Date(Number(cred.validUntil) * 1000).toLocaleDateString()}
+                            </span>
                         </div>
                     )}
                 </div>
-            </div>
-        </main>
+
+                {isIssuerView && (
+                    <div className="pt-2 border-t border-border/50">
+                        <span className="block font-semibold uppercase text-[10px] tracking-wider opacity-70 mb-1">Holder</span>
+                        <div className="bg-muted/50 p-1.5 rounded font-mono text-[10px] break-all">
+                            {cred.holder}
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+
+            <CardFooter className="pt-0 gap-2">
+                <Button asChild size="sm" className="flex-1 w-full" variant={cred.isRevoked ? "outline" : "default"}>
+                    <Link href={`/view/${cred.ipfs_cid}?id=${cred.id}#key=${encodeURIComponent(cred.encryption_key)}&iv=${encodeURIComponent(cred.iv)}`}>
+                        <ExternalLink className="mr-2 h-3 w-3" /> View
+                    </Link>
+                </Button>
+
+                <Button variant="secondary" size="icon" className="h-9 w-9" onClick={onCopy} title="Copy Link">
+                    <Copy className="h-4 w-4" />
+                </Button>
+
+                {isIssuerView && !cred.isRevoked && onRevoke && (
+                    <Button variant="destructive" size="sm" onClick={onRevoke} title="Revoke">
+                        Revoke
+                    </Button>
+                )}
+            </CardFooter>
+        </Card>
     );
 }
