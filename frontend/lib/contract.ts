@@ -56,7 +56,23 @@ const issueCredential = async (targetAddress: `0x${string}`, ipfsHash: string, v
             account
         });
 
-        return { ok: true, data: hash };
+        const client = initClient();
+        const receipt = await client.waitForTransactionReceipt({ hash });
+
+        let credId = "";
+        for (const log of receipt.logs) {
+            try {
+                // Topic 1 is the first indexed argument: credId (bytes32)
+                if (log.topics[1]) {
+                    credId = log.topics[1];
+                    break;
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+
+        return { ok: true, data: credId || hash }; // Return credId if found, else hash (fallback)
     } catch (err) {
         console.error(err);
         return { ok: false, error: err };
@@ -97,14 +113,14 @@ const getMyCredentials = async (): Promise<{ ok: boolean; data?: any; error?: an
 const getCredentialDetails = async (credId: string): Promise<{ ok: boolean; data?: { ipfsHash: string; issuer: string; holder: string; isRevoked: boolean; validUntil: bigint }; error?: any }> => {
     try {
         const client = initClient();
+        const formattedCredId = credId.startsWith("0x") ? credId : `0x${credId}`;
+
         const data = await client.readContract({
             address: contractAddress,
             abi: contractAbi,
             functionName: "fetchCredential",
-            args: [credId as `0x${string}`]
+            args: [formattedCredId as `0x${string}`]
         }) as [string, string, string, boolean, bigint];
-
-        console.log(data);
 
         return {
             ok: true,

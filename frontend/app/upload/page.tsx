@@ -115,16 +115,17 @@ export default function IssuePage() {
                 throw new Error(txResult.error || "Transaction failed");
             }
 
-            const txHash = txResult.data;
+            const credId = txResult.data;
 
-            setStatus(`Transaction Sent! Hash: ${txHash}. Saving to Database...`);
+            setStatus(`Credential Issued! ID: ${credId}. Saving to Database...`);
 
-            // 5. Store in Supabase
+            // 5. Store in Supabase -- we can store both IPFS CID and CredID if valid
             const { error: dbError } = await supabase
                 .from("user_credentials")
                 .insert({
                     receiver_address: receiverAddress,
                     ipfs_cid: upload.cid,
+                    cred_id: credId,
                     encryption_key: keyStr,
                     iv: ivStr,
                     metadata: metadata
@@ -132,8 +133,8 @@ export default function IssuePage() {
 
             if (dbError) throw new Error("Database Error: " + dbError.message);
 
-            // 6. Generate Magic Link (Optional, mostly for immediate sharing)
-            const link = `${window.location.origin}/view/${upload.cid}#key=${encodeURIComponent(keyStr)}&iv=${encodeURIComponent(ivStr)}`;
+            // 6. Generate Magic Link (Use CredID now, not IPFS CID)
+            const link = `${window.location.origin}/view/${upload.cid}?id=${credId}#key=${encodeURIComponent(keyStr)}&iv=${encodeURIComponent(ivStr)}`;
 
             setResultLink(link);
             setStatus("Success! Credential Issued & Recorded on Blockchain.");
