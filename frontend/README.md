@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Secure Credential Registry - Frontend
 
-## Getting Started
+This is the web application interface for the Secure Credential Registry, built with **Next.js 16** and **React 19**.
 
-First, run the development server:
+## Overview
+
+The frontend allows users to:
+- **Connect Wallet**: Secure login using MetaMask (or other EVM wallets) via Wagmi/Viem.
+- **Dashboard**: View received and issued credentials.
+- **Issue Credential**: (For approved issuers) Upload files to IPFS and mint credentials on-chain.
+- **Verify Credential**: View and verify credentials via shared links.
+
+## Tech Stack
+
+- **Framework**: [Next.js](https://nextjs.org) (App Router)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com) + [Shadcn UI](https://ui.shadcn.com/) (using Radix Primitives)
+- **Blockchain**: [Wagmi](https://wagmi.sh) & [Viem](https://viem.sh)
+- **Storage**: [Pinata SDK](https://docs.pinata.cloud/) for IPFS interaction
+
+## Prerequisites
+
+- **Node.js**: v18+ recommended
+- **npm**: v9+
+- **MetaMask**: Installed in your browser
+
+## Installation
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+## Configuration
+
+Create a `.env.local` file in the `frontend` directory with your API keys and configuration:
+
+```env
+# WalletConnect Project ID (from https://cloud.walletconnect.com)
+NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_project_id
+
+# Pinata API Config for IPFS
+NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt
+
+# Supabase Config (if applicable)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+## Usage
+
+### Development Server
+
+Run the development server locally:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build for Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+To build the application for production:
 
-## Learn More
+```bash
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+Then start the production server:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Key Directories
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `app/`: Next.js App Router pages and layouts.
+- `components/`: Reusable UI components.
+- `lib/`: Utility functions and configuration (e.g., `contract.ts`, `utils.ts`).
+- `hooks/`: Custom React hooks.

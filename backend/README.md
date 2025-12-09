@@ -1,57 +1,81 @@
-# Sample Hardhat 3 Beta Project (`node:test` and `viem`)
+# Secure Credential Registry - Backend
 
-This project showcases a Hardhat 3 Beta project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+This directory contains the smart contract and deployment scripts for the Secure Credential Registry application. It is built using [Hardhat](https://hardhat.org/).
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Smart Contract
 
-## Project Overview
+The core of this project is the `CredentialRegistry.sol` smart contract.
 
-This example project includes:
+**Key Features:**
+- **Role-Based Access Control (RBAC)**: Managed via OpenZeppelin's `AccessControl`.
+  - `DEFAULT_ADMIN_ROLE`: Can regulate issuers (add/remove universities).
+  - `ISSUER_ROLE`: Can issue and revoke credentials.
+- **Credential Management**:
+  - Issue credentials with IPFS hash, student address, and optional expiration.
+  - Revoke credentials.
+  - Fetch credential details and validity status.
+  - List credentials owned by a user.
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+## Prerequisites
+
+- **Node.js**: v18+ recommended
+- **npm**: v9+
+
+## Installation
+
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+## Configuration
+
+Create a `.env` file in the `backend` directory with the following variables:
+
+```env
+# Private Key for the account to deploy contracts
+SEPOLIA_PRIVATE_KEY=your_private_key_here
+
+# Optional: API Keys for verification (if you plan to verify on Etherscan)
+ETHERSCAN_API_KEY=your_etherscan_api_key
+```
+
+> [!WARNING]
+> Never commit your `.env` file or private keys to version control.
 
 ## Usage
 
-### Running Tests
+### Compile Contracts
 
-To run all the tests in the project, execute the following command:
+```bash
+npx hardhat compile
+```
 
-```shell
+### Run Tests
+
+Run the full test suite (Solidity + Node.js tests):
+
+```bash
 npx hardhat test
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
+### Deploy
 
-```shell
-npx hardhat test solidity
-npx hardhat test nodejs
-```
+To deploy the smart contract to the Sepolia testnet using Hardhat Ignition:
 
-### Make a deployment to Sepolia
-
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
-```
-
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
-
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
+```bash
 npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
 ```
+*(Note: Ensure you have updated the module path to your actual deployment module if it differs from `Counter.ts`)*
+
+## Project Structure
+
+- `contracts/`: Solidity smart contracts.
+- `ignition/`: Deployment modules (Ignition).
+- `test/`: Unit tests.
+- `hardhat.config.ts`: Hardhat configuration.
