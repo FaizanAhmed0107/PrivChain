@@ -1,6 +1,6 @@
-# Secure Decentralized Credential Registry
+# PrivChain
 
-The **ZK Credential App** is a decentralized, privacy-preserving platform for issuing, storing, and verifying academic and professional credentials. It leverages Blockchain technology for immutable trust and IPFS for decentralized storage, ensuring that credentials are verifiable, secure, and user-owned.
+The **PrivChain** is a decentralized, privacy-preserving platform for issuing, storing, and verifying academic and professional credentials. It leverages Blockchain technology for immutable trust and IPFS for decentralized storage, ensuring that credentials are verifiable, secure, and user-owned.
 
 ## 🛠️ Features
 

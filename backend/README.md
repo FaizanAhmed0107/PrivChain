@@ -1,6 +1,6 @@
-# Secure Credential Registry - Backend
+# PrivChain - Backend
 
-This directory contains the smart contract and deployment scripts for the Secure Credential Registry application. It is built using [Hardhat](https://hardhat.org/).
+This directory contains the smart contract and deployment scripts for the PrivChain application. It is built using [Hardhat](https://hardhat.org/).
 
 ## Smart Contract
 

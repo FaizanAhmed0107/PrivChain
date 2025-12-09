@@ -1,6 +1,6 @@
-# Secure Credential Registry - Frontend
+# PrivChain - Frontend
 
-This is the web application interface for the Secure Credential Registry, built with **Next.js 16** and **React 19**.
+This is the web application interface for the PrivChain, built with **Next.js 16** and **React 19**.
 
 ## Overview
 
