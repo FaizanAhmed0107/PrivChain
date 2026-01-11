@@ -6,7 +6,7 @@ import { WalletConnect } from "@/components/WalletConnect";
 import { useUserRole } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, LayoutDashboard, UploadCloud, ShieldAlert } from "lucide-react";
+import { ShieldCheck, LayoutDashboard, UploadCloud, ShieldAlert, Scan } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Sun, Moon } from "lucide-react";
@@ -21,6 +21,12 @@ export function Navbar() {
             name: "Dashboard",
             href: "/dashboard",
             icon: LayoutDashboard,
+            visible: true,
+        },
+        {
+            name: "Verify",
+            href: "/verify",
+            icon: Scan,
             visible: true,
         },
         {
