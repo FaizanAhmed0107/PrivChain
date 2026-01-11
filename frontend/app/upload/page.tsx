@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, UploadCloud, FileText, CheckCircle, ExternalLink, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
+import { generateSalt, generateCommitment } from "@/utils/zkp";
+
 export default function IssuePage() {
     const { activeTemplates, loading: loadingTemplates } = useTemplates();
     const [file, setFile] = useState<File>();
@@ -54,6 +56,7 @@ export default function IssuePage() {
         return res.url;
     };
 
+    // ... (Guard Clauses Omitted for brevity, unchanged) ...
     // Guard Clauses
     if (loadingTemplates || loadingRole) {
         return (
@@ -126,7 +129,27 @@ export default function IssuePage() {
 
         try {
             setIsIssuing(true);
-            setStatus("Preparing metadata & Encrypting...");
+            setStatus("Preparing metadata & ZKP...");
+
+            let commitment = "0x0000000000000000000000000000000000000000000000000000000000000000";
+            let zkpData = null;
+
+            // ZKP Logic
+            if (formData["birthdate"]) {
+                setStatus("Generating ZK Commitment...");
+                const salt = generateSalt();
+                const birthdateTimestamp = Math.floor(new Date(formData["birthdate"]).getTime() / 1000);
+
+                const comm = await generateCommitment(birthdateTimestamp, salt);
+                commitment = `0x${BigInt(comm).toString(16).padStart(64, '0')}`; // Convert to hex32
+
+                zkpData = {
+                    salt: salt,
+                    birthdate: birthdateTimestamp
+                };
+            }
+
+            setStatus("Encrypting bundle...");
 
             // 1. Prepare Metadata
             const metadata = {
@@ -135,6 +158,7 @@ export default function IssuePage() {
                 issuedAt: new Date().toISOString(),
                 description: `Issued by ${issuerAddress}`,
                 validUntil: validUntil || null,
+                zkp: zkpData,
                 ...formData
             };
 
@@ -151,7 +175,9 @@ export default function IssuePage() {
             // 4. Write to Smart Contract
             setStatus("Waiting for wallet signature...");
             const validUntilTimestamp = validUntil ? BigInt(Math.floor(new Date(validUntil).getTime() / 1000)) : BigInt(0);
-            const txResult = await issueCredential(receiverAddress as `0x${string}`, upload.cid, validUntilTimestamp);
+
+            // Pass commitment to contract
+            const txResult = await issueCredential(receiverAddress as `0x${string}`, upload.cid, validUntilTimestamp, commitment as `0x${string}`);
 
             if (!txResult.ok || !txResult.data) {
                 throw new Error(txResult.error || "Transaction failed");
@@ -274,6 +300,31 @@ export default function IssuePage() {
                                 />
                             </div>
                         ))}
+                    </div>
+
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">Privacy Features</span>
+                        </div>
+                    </div>
+
+                    {/* ZKP Birthdate Input */}
+                    <div className="space-y-2 rounded-lg border p-4 bg-muted/20">
+                        <label className="text-sm font-medium leading-none flex items-center gap-2">
+                            Birthday (Zero-Knowledge Proof)
+                            <Badge variant="outline" className="text-[10px] h-5">Optional</Badge>
+                        </label>
+                        <p className="text-xs text-muted-foreground">
+                            If provided, the holder can prove they are 18+ without revealing the exact date.
+                        </p>
+                        <Input
+                            type="date"
+                            value={formData["birthdate"] || ""}
+                            onChange={e => handleInputChange("birthdate", e.target.value)}
+                        />
                     </div>
 
                     <div className="relative">

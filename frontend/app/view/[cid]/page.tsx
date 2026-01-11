@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { getCredentialDetails, revokeCredential } from "@/lib/contract";
+import { getCredentialDetails, revokeCredential, verifyAge } from "@/lib/contract";
 import { useEffect, useState, use } from "react";
 import { decryptBundle } from "@/utils/bundleEncryption";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -9,8 +9,10 @@ import { useWallet } from "@/lib/wallet";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle, XCircle, AlertCircle, FileText, Download, Shield, Calendar, User, Eye, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, AlertCircle, FileText, Download, Shield, Calendar, User, Eye, AlertTriangle, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { generateProof, exportSolidityProof } from "@/utils/zkp";
+import QRCode from "react-qr-code";
 
 interface CredentialData {
     metadata: Record<string, any>;
@@ -39,6 +41,12 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
     const [holder, setHolder] = useState<string>("");
     const [verificationStatus, setVerificationStatus] = useState<"verifying" | "valid" | "revoked" | "expired" | "not_found">("verifying");
     const [revoking, setRevoking] = useState(false);
+
+    // ZKP State
+    const [zkpSuccess, setZkpSuccess] = useState(false);
+    const [verifyingZKP, setVerifyingZKP] = useState(false);
+    const [qrData, setQrData] = useState<string>("");
+    const [zkpError, setZkpError] = useState<string>("");
 
     const handleRevoke = async () => {
         if (!confirm("Are you sure you want to revoke this credential? This cannot be undone.")) return;
@@ -109,6 +117,8 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
                         return;
                     }
 
+                    console.log("Fetching from IPFS:", ipfsHash);
+
                     // 3. Fetch Encrypted Bundle
                     setStatus("Fetching Encrypted Data from IPFS...");
                     const gatewayUrl = `/api/ipfs/${ipfsHash}`;
@@ -149,6 +159,61 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
         return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
     };
 
+    const handleProveAge = async () => {
+        if (!data || !data.metadata.zkp) return;
+        try {
+            setVerifyingZKP(true);
+            setZkpError(""); // Clear previous errors
+
+            // 1. Generate Proof
+            const { birthdate, salt } = data.metadata.zkp;
+            // Note: birthdate here is timestamp number
+            const { proof, publicSignals } = await generateProof(birthdate, salt);
+
+            // 2. Format for Solidity
+            const solProof = exportSolidityProof(proof, publicSignals);
+
+            // 3. Verify on Chain
+            if (!credId) throw new Error("Credential ID missing");
+
+            const res = await verifyAge(
+                credId,
+                solProof.pA,
+                solProof.pB,
+                solProof.pC,
+                solProof.publicSignals
+            );
+
+            if (res.ok && res.isValid) {
+                setZkpSuccess(true);
+                // Set QR Data: { proof, publicSignals, credId }
+                // We keep it minimal for QR capacity
+                const qrPayload = JSON.stringify({
+                    pid: credId.slice(0, 10), // partial ID for check
+                    p: solProof, // The solidity formatted proof
+                    c: credId, // Full Credential ID
+                    d: "Age Requirement (18+)" // Description of what is proved
+                });
+                setQrData(qrPayload);
+            } else {
+                alert("Verification Failed: Proof is invalid or conditions not met.");
+            }
+
+        } catch (e) {
+            console.error(e);
+            const msg = (e as Error).message;
+            if (msg.includes("Assert Failed")) {
+                setZkpError("Proof Verification Failed: Age requirement (18+) not met.");
+            } else {
+                setZkpError("Error proving age: " + msg);
+            }
+        } finally {
+            setVerifyingZKP(false);
+        }
+    };
+
+    // ... (rest of render)
+
     if (status) {
         return (
             <div className="w-full min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 bg-background space-y-4">
@@ -160,14 +225,14 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
 
     if (!data) return null;
 
-    const hiddenKeys = ["typeId", "typeName", "issuedAt", "description", "validUntil"];
+    const hiddenKeys = ["typeId", "typeName", "issuedAt", "description", "validUntil", "zkp"];
     const displayKeys = Object.keys(data.metadata).filter(k => !hiddenKeys.includes(k));
 
     return (
         <main className="container mx-auto px-4 py-8 max-w-6xl animate-in fade-in zoom-in-95 duration-500">
 
             {/* Verification Status Banner */}
-            <div className="flex justify-center mb-8">
+            <div className="flex flex-col items-center gap-4 mb-8">
                 <div className={cn(
                     "px-6 py-3 rounded-full font-bold flex items-center gap-3 shadow-sm border transition-all duration-300",
                     verificationStatus === "valid" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800" :
@@ -183,7 +248,65 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
                             verificationStatus === "revoked" ? "Credential Revoked" :
                                 verificationStatus === "expired" ? "Credential Expired" : "Verification Failed"}
                     </span>
+                    {/* ZKP Error Banner */}
+                    {zkpError && (
+                        <div className="flex flex-col gap-4 w-full animate-in slide-in-from-top-2">
+                            <div className="px-6 py-3 rounded-full font-bold flex items-center gap-3 shadow-sm border bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800">
+                                <XCircle className="w-6 h-6" />
+                                <span className="text-lg tracking-tight">{zkpError}</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
+
+                {/* ZKP Banner */}
+                {zkpSuccess && (
+                    <div className="flex flex-col gap-4 w-full animate-in slide-in-from-top-2">
+                        <div className="px-6 py-3 rounded-full font-bold flex items-center gap-3 shadow-sm border bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800">
+                            <Shield className="w-6 h-6" />
+                            <span className="text-lg tracking-tight">Age Verified (18+) via ZK Proof</span>
+                        </div>
+
+                        {/* QR Code Section */}
+                        {qrData && (
+                            <div className="flex flex-col items-center justify-center p-6 rounded-xl border border-border mt-2 bg-secondary/20">
+                                <p className="text-sm font-semibold mb-4 text-center text-muted-foreground">Scan to Verify Offline</p>
+
+                                {/* QR Padding must remain white for contrast if dark mode */}
+                                <div className="p-4 bg-white rounded-lg shadow-sm">
+                                    <QRCode value={qrData} size={180} />
+                                </div>
+
+                                <div className="w-full mt-6 space-y-2">
+                                    <p className="text-xs text-muted-foreground font-medium uppercase">Raw Proof Data</p>
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-1">
+                                            <input
+                                                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono text-muted-foreground truncate"
+                                                readOnly
+                                                value={qrData}
+                                            />
+                                        </div>
+                                        <Button
+                                            size="icon"
+                                            variant="outline"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(qrData);
+                                                alert("Proof data copied to clipboard!");
+                                            }}
+                                            title="Copy Proof Data"
+                                        >
+                                            <Copy className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground text-center">
+                                        Copy this JSON to paste manually in the Verify app.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -191,6 +314,7 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
                 {/* Left Column: Metadata Card */}
                 <div className="lg:col-span-4 space-y-6">
                     <Card className="overflow-hidden border-t-4 border-t-primary shadow-lg">
+                        {/* ... (Header unchanged) ... */}
                         <CardHeader className="bg-muted/50 pb-4">
                             <div className="flex justify-between items-start">
                                 <div>
@@ -205,6 +329,7 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
                         </CardHeader>
                         <CardContent className="pt-6 space-y-5">
 
+                            {/* ... (Dates unchanged) ... */}
                             <div className="flex items-center gap-3 text-sm">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                 <div>
@@ -225,6 +350,23 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
                                 </div>
                             )}
 
+                            {/* ZKP Action */}
+                            {data.metadata.zkp && !zkpSuccess && (
+                                <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
+                                    <p className="text-xs font-semibold text-purple-800 dark:text-purple-300 mb-2 uppercase flex items-center gap-1">
+                                        <Shield className="h-3 w-3" /> Privacy Action
+                                    </p>
+                                    <p className="text-sm text-purple-700 dark:text-purple-400 mb-3">
+                                        This credential contains hidden birthdate data. Verify age (18+) without revealing it?
+                                    </p>
+                                    <Button size="sm" onClick={handleProveAge} disabled={verifyingZKP} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                                        {verifyingZKP ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                                        Prove Age (ZKP)
+                                    </Button>
+                                </div>
+                            )}
+
+                            {/* ... (Issuer/Holder unchanged) ... */}
                             <div className="pt-4 border-t border-dashed space-y-4">
                                 <div>
                                     <p className="text-xs text-muted-foreground font-semibold uppercase mb-1 flex items-center gap-1">

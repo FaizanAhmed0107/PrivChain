@@ -12,7 +12,9 @@
   "type": "module",
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0",
-    "dotenv": "^17.2.3"
+    "circomlib": "^2.0.5",
+    "dotenv": "^17.2.3",
+    "snarkjs": "^0.7.5"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.5",

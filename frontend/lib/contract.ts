@@ -32,7 +32,7 @@ const fetchRole = async (): Promise<{ ok: boolean; data?: string; error?: any }>
 };
 
 // function issueCredential(address,string,uint256)
-const issueCredential = async (targetAddress: `0x${string}`, ipfsHash: string, validUntil: bigint): Promise<{ ok: boolean; data?: string; error?: any }> => {
+const issueCredential = async (targetAddress: `0x${string}`, ipfsHash: string, validUntil: bigint, commitment: `0x${string}`): Promise<{ ok: boolean; data?: string; error?: any }> => {
     try {
         if (typeof window === 'undefined' || !(window as any).ethereum) {
             throw new Error("No crypto wallet found. Please install MetaMask.");
@@ -46,13 +46,14 @@ const issueCredential = async (targetAddress: `0x${string}`, ipfsHash: string, v
         const [account] = await walletClient.requestAddresses();
 
         console.log("validUntil", validUntil);
+        console.log("commitment", commitment);
 
         // Use writeContract for state-changing functions
         const hash = await walletClient.writeContract({
             address: contractAddress,
             abi: contractAbi,
             functionName: "issueCredential",
-            args: [targetAddress, ipfsHash, validUntil], // Pass the required arguments
+            args: [targetAddress, ipfsHash, validUntil, commitment], // Pass the required arguments
             account
         });
 
@@ -120,7 +121,7 @@ const getCredentialDetails = async (credId: string): Promise<{ ok: boolean; data
             abi: contractAbi,
             functionName: "fetchCredential",
             args: [formattedCredId as `0x${string}`]
-        }) as [string, string, string, boolean, bigint];
+        }) as [string, string, string, boolean, bigint, string];
 
         return {
             ok: true,
@@ -309,4 +310,31 @@ const removeIssuer = async (issuerAddress: string): Promise<{ ok: boolean; data?
     }
 };
 
-export { fetchRole, issueCredential, getMyCredentials, getCredentialDetails, checkIsAdmin, getIssuedCredentials, revokeCredential, checkIsIssuer, getAllIssuers, addIssuer, removeIssuer };
+// function verifyAge(...)
+const verifyAge = async (credId: string, pA: any, pB: any, pC: any, pubSignals: any): Promise<{ ok: boolean; isValid?: boolean; error?: any }> => {
+    try {
+        const client = initClient();
+        const formattedCredId = credId.startsWith("0x") ? credId : `0x${credId}`;
+
+        // We use readContract to simulate the verification for free
+        const isValid = await client.readContract({
+            address: contractAddress,
+            abi: contractAbi,
+            functionName: "verifyAge",
+            args: [
+                formattedCredId as `0x${string}`,
+                pA,
+                pB,
+                pC,
+                pubSignals[1] // thresholdDate (pubSignals[0] is commitment, which contract fetches)
+            ]
+        });
+
+        return { ok: true, isValid };
+    } catch (err) {
+        console.error(err);
+        return { ok: false, error: err };
+    }
+};
+
+export { fetchRole, issueCredential, getMyCredentials, getCredentialDetails, checkIsAdmin, getIssuedCredentials, revokeCredential, checkIsIssuer, getAllIssuers, addIssuer, removeIssuer, verifyAge };

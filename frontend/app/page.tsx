@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Shield, Lock, FileCheck, ArrowRight, Zap, Globe } from "lucide-react";
@@ -7,6 +8,11 @@ import { useWallet } from "@/lib/wallet";
 
 export default function LandingPage() {
   const { isConnected } = useWallet();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -28,7 +34,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center animate-in fade-in slide-in-from-bottom-10 duration-700 delay-200">
             <Button size="lg" className="text-lg px-8 h-12 rounded-full shadow-lg shadow-primary/20" asChild>
               <Link href="/dashboard">
-                {isConnected ? "Go to Dashboard" : "Launch App"} <ArrowRight className="ml-2 h-5 w-5" />
+                {mounted && isConnected ? "Go to Dashboard" : "Launch App"} <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>
             <Button size="lg" variant="outline" className="text-lg px-8 h-12 rounded-full" asChild>

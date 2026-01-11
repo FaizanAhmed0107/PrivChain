@@ -3,9 +3,21 @@ pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
+interface IGroth16Verifier {
+    function verifyProof(
+        uint[2] calldata _pA,
+        uint[2][2] calldata _pB,
+        uint[2] calldata _pC,
+        uint[2] calldata _pubSignals
+    ) external view returns (bool);
+}
+
 contract CredentialRegistry is AccessControl {
     // Role for those who are allowed to issue credentials
     bytes32 public constant ISSUER_ROLE = keccak256("ISSUER_ROLE");
+
+    // ZKP Verifier Contract
+    IGroth16Verifier public verifier;
 
     struct Credential {
         string ipfsHash;
@@ -14,6 +26,7 @@ contract CredentialRegistry is AccessControl {
         uint256 issuanceDate;
         uint256 validUntil;
         bool isRevoked;
+        bytes32 commitment; // ZKP Commitment: Poseidon(birthdate, salt)
     }
 
     // Mapping: Credential ID => Credential Data
@@ -39,8 +52,11 @@ contract CredentialRegistry is AccessControl {
     event CredentialRevoked(bytes32 indexed credId, address indexed revokedBy);
     event IssuerAdded(address indexed issuer);
     event IssuerRemoved(address indexed issuer);
+    event ProofVerified(bytes32 indexed credId, bool success);
 
-    constructor() {
+    constructor(address _verifierAddress) {
+        verifier = IGroth16Verifier(_verifierAddress);
+
         // Give deployer admin + issuer role
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ISSUER_ROLE, msg.sender);
@@ -95,8 +111,9 @@ contract CredentialRegistry is AccessControl {
     function issueCredential(
         address _holder,
         string memory _ipfsHash,
-        uint256 _validUntil
-    ) external onlyRole(ISSUER_ROLE) {
+        uint256 _validUntil,
+        bytes32 _commitment // New Argument for ZKP
+    ) external onlyRole(ISSUER_ROLE) returns (bytes32) {
         uint256 timestamp = block.timestamp;
 
         // Unique ID = hash(timestamp + holder + issuer)
@@ -113,7 +130,8 @@ contract CredentialRegistry is AccessControl {
             holder: _holder,
             issuanceDate: timestamp,
             validUntil: _validUntil,
-            isRevoked: false
+            isRevoked: false,
+            commitment: _commitment
         });
 
         // Store this credential under holder history
@@ -123,6 +141,8 @@ contract CredentialRegistry is AccessControl {
         issuerCredentials[msg.sender].push(credId);
 
         emit CredentialIssued(credId, msg.sender, _holder, _validUntil);
+
+        return credId;
     }
 
     // ---------------------------------------
@@ -149,7 +169,11 @@ contract CredentialRegistry is AccessControl {
     // ----------------------------
     function fetchCredential(
         bytes32 _credId
-    ) external view returns (string memory, address, address, bool, uint256) {
+    )
+        external
+        view
+        returns (string memory, address, address, bool, uint256, bytes32)
+    {
         Credential memory cred = credentials[_credId];
         bool isExpired = (cred.validUntil != 0 &&
             block.timestamp > cred.validUntil);
@@ -158,19 +182,51 @@ contract CredentialRegistry is AccessControl {
             cred.issuer,
             cred.holder,
             cred.isRevoked || isExpired,
-            cred.validUntil
+            cred.validUntil,
+            cred.commitment
         );
     }
 
     // ------------------------------------------------------
-    // 5. NEW — Get ALL credentials held by the caller
+    // 5. ZKP Verification: Prove Age
+    // ------------------------------------------------------
+    function verifyAge(
+        bytes32 _credId,
+        uint[2] calldata _pA,
+        uint[2][2] calldata _pB,
+        uint[2] calldata _pC,
+        uint256 _thresholdDate // Public Signal 2 (Public Signal 1 is commitment)
+    ) external returns (bool) {
+        Credential memory cred = credentials[_credId];
+        require(cred.issuanceDate != 0, "Credential not found");
+        require(!cred.isRevoked, "Credential revoked");
+
+        // Construction of Public Signals
+        // The circuit has 2 public signals: [commitment, thresholdDate]
+        // Note: SnarkJS/Circom export usually puts public inputs in a specific order.
+        // Based on our circuit: main {public [commitment, thresholdDate]}
+        // The Verifier.sol expects signals in the array.
+
+        uint[2] memory pubSignals;
+        pubSignals[0] = uint256(cred.commitment);
+        pubSignals[1] = _thresholdDate;
+
+        // Call the Verifier Contract
+        bool result = verifier.verifyProof(_pA, _pB, _pC, pubSignals);
+
+        emit ProofVerified(_credId, result);
+        return result;
+    }
+
+    // ------------------------------------------------------
+    // 6. Get ALL credentials held by the caller
     // ------------------------------------------------------
     function getMyCredentials() external view returns (bytes32[] memory) {
         return holderCredentials[msg.sender];
     }
 
     // ------------------------------------------------------
-    // 6. NEW — Get ALL credentials issued by a specific address
+    // 7. Get ALL credentials issued by a specific address
     // ------------------------------------------------------
     function getIssuedCredentials(
         address _issuer
@@ -179,7 +235,7 @@ contract CredentialRegistry is AccessControl {
     }
 
     // ------------------------------------------------------
-    // 7. NEW — Get ALL Issuers
+    // 8. Get ALL Issuers
     // ------------------------------------------------------
     function getAllIssuers() external view returns (address[] memory) {
         return issuerList;

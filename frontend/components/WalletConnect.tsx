@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWallet } from "@/lib/wallet";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +32,20 @@ export function WalletConnect() {
             setTimeout(() => setCopied(false), 2000);
         }
     };
+
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // Prevent hydration mismatch
+    if (!mounted) return (
+        <Button disabled className="font-semibold gap-2 opacity-50">
+            <Wallet className="h-4 w-4" />
+            Loading...
+        </Button>
+    );
 
     if (!isConnected) {
         return (
