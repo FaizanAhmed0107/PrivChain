@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Shield, Lock, FileCheck, ArrowRight, Zap, Globe } from "lucide-react";
+import { Shield, Lock, FileCheck, ArrowRight, Zap, Globe, CheckCircle, XCircle } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
 
 export default function LandingPage() {
@@ -22,14 +22,14 @@ export default function LandingPage() {
         <div className="container relative z-10 px-4 md:px-8 mx-auto text-center max-w-5xl">
           <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
-            v1.0 Now Live
+            v2.1 Now Live
           </div>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-500 to-indigo-600 animate-in fade-in slide-in-from-bottom-6 duration-700">
             PrivChain
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
             Secure, verifiable, and decentralized credentials on the blockchain.
-            Empowering issuers and holders with Zero-Knowledge privacy principles.
+            Empowering issuers and holders with Zero-Knowledge Proof (ZKP) privacy principles.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center animate-in fade-in slide-in-from-bottom-10 duration-700 delay-200">
             <Button size="lg" className="text-lg px-8 h-12 rounded-full shadow-lg shadow-primary/20" asChild>
@@ -62,8 +62,8 @@ export default function LandingPage() {
             />
             <FeatureCard
               icon={<Lock className="h-10 w-10 text-indigo-500" />}
-              title="Privacy First"
-              description="Data is encrypted using AES-256 before storage on IPFS. Only the holder and issuer possess the decryption keys."
+              title="Zero-Knowledge Privacy"
+              description="Prove eligibility (e.g., Age 18+) without revealing personal data. Mathematical truth, absolute privacy."
             />
             <FeatureCard
               icon={<Globe className="h-10 w-10 text-pink-500" />}
@@ -83,7 +83,8 @@ export default function LandingPage() {
               <div className="space-y-8">
                 <Step number="01" title="Issuer Connects" description="Authorized organizations connect their wallet to the PrivChain admin panel." />
                 <Step number="02" title="Credential Issuance" description="The issuer uploads a certificate, fills in metadata, and signs the transaction." />
-                <Step number="03" title="Holder Verifies" description="The recipient receives the credential instantly in their dashboard, verifiable by anyone with the link." />
+                <Step number="03" title="ZKP Generation" description="Holder generates a proof locally to verify claims without sharing sensitive details." />
+                <Step number="04" title="Holder Verifies" description="The recipient receives the credential instantly in their dashboard, verifiable by anyone with the link." />
               </div>
             </div>
             <div className="relative">
@@ -109,12 +110,35 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      <section className="py-20 bg-muted/50">
+        <div className="container px-4 md:px-8 mx-auto max-w-5xl">
+          <h2 className="text-3xl font-bold text-center mb-12">Traditional vs. ZK Verification</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-red-500/5 border border-red-200/20 p-8 rounded-xl">
+              <h3 className="text-xl font-bold mb-6 flex items-center"><XCircle className="text-red-500 mr-2" /> Traditional Identity</h3>
+              <ul className="space-y-4 text-muted-foreground">
+                <li className="flex items-start"><span className="mr-3">❌</span> Reveals full ID document & birthdate</li>
+                <li className="flex items-start"><span className="mr-3">❌</span> Data stored on vulnerable central servers</li>
+                <li className="flex items-start"><span className="mr-3">❌</span> High risk of identity theft & leakage</li>
+              </ul>
+            </div>
+            <div className="bg-green-500/5 border border-green-200/20 p-8 rounded-xl">
+              <h3 className="text-xl font-bold mb-6 flex items-center"><CheckCircle className="text-green-500 mr-2" /> PrivChain ZK Proofs</h3>
+              <ul className="space-y-4 text-muted-foreground">
+                <li className="flex items-start"><span className="mr-3">✅</span> Reveals ONLY validity (e.g. 18+)</li>
+                <li className="flex items-start"><span className="mr-3">✅</span> Data stays on your device (Client-Side)</li>
+                <li className="flex items-start"><span className="mr-3">✅</span> Mathematically proven privacy & security</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
       <footer className="py-12 border-t bg-muted/10">
         <div className="container px-4 text-center text-muted-foreground text-sm">
           <p>&copy; {new Date().getFullYear()} PrivChain. All rights reserved.</p>
-          <p className="mt-2">Built with Next.js, Tailwind, Wagmi & Hardhat.</p>
+          <p className="mt-2">Built with Next.js, Tailwind, Wagmi & Hardhat. Powered by <strong>Circom</strong> & <strong>SnarkJS</strong>.</p>
         </div>
       </footer>
     </div>

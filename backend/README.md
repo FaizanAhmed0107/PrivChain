@@ -15,6 +15,10 @@ The core of this project is the `CredentialRegistry.sol` smart contract.
   - Revoke credentials.
   - Fetch credential details and validity status.
   - List credentials owned by a user.
+- **ZKP Verification**:
+  - Verifies **Groth16** proofs submitted by the frontend.
+  - Ensures `birthdate < threshold` without revealing birthdate.
+  - Validates `commitment` against the stored credential data.
 
 ## Prerequisites
 
@@ -76,6 +80,15 @@ npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
 ## Project Structure
 
 - `contracts/`: Solidity smart contracts.
+- `circuits/`: Circom zero-knowledge privacy circuits.
 - `ignition/`: Deployment modules (Ignition).
 - `test/`: Unit tests.
 - `hardhat.config.ts`: Hardhat configuration.
+
+### 🧩 Circuits
+
+The `circuits/` directory contains the ZK logic:
+- **credential.circom**: The core circuit for age verification.
+    - **Private Inputs**: User's `birthdate` and `salt`.
+    - **Public Inputs**: `commitment` (on-chain hash) and `thresholdDate`.
+    - **Logic**: Proves `birthdate <= threshold` AND `Poseidon(birthdate, salt) == commitment`.

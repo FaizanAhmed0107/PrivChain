@@ -9,12 +9,14 @@ The frontend allows users to:
 - **Dashboard**: View received and issued credentials.
 - **Issue Credential**: (For approved issuers) Upload files to IPFS and mint credentials on-chain.
 - **Verify Credential**: View and verify credentials via shared links.
+- **ZKP Age Verification**: Generate client-side zero-knowledge proofs to prove age > 18 without revealing birthdate.
 
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org) (App Router)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com) + [Shadcn UI](https://ui.shadcn.com/) (using Radix Primitives)
 - **Blockchain**: [Wagmi](https://wagmi.sh) & [Viem](https://viem.sh)
+- **ZKP**: [SnarkJS](https://github.com/iden3/snarkjs) & [Circomlibjs](https://github.com/iden3/circomlibjs) for client-side proof generation.
 - **Storage**: [Pinata SDK](https://docs.pinata.cloud/) for IPFS interaction
 
 ## Prerequisites
@@ -83,3 +85,4 @@ npm start
 - `components/`: Reusable UI components.
 - `lib/`: Utility functions and configuration (e.g., `contract.ts`, `utils.ts`).
 - `hooks/`: Custom React hooks.
+- `public/zkp`: Contains the compiled circuit artifacts (`credential.wasm`, `credential_final.zkey`).

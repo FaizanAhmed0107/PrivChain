@@ -10,6 +10,7 @@ The **PrivChain** is a decentralized, privacy-preserving platform for issuing, s
 - **Role-Based Access Control**: Strict `Admin` and `Issuer` roles ensure only authorized entities can mint credentials.
 - **Secure Verification**: Instant verification via smart contract calls—no manual checks required.
 - **On-Chain Revocation**: Issuers can revoke credentials instantly if needed.
+- **Privacy-Preserving Age Verification (ZKP)**: Users prove eligibility (e.g., age > 18) without revealing their actual birthdate.
 
 ## 📸 How It Works
 
@@ -23,6 +24,20 @@ The **PrivChain** is a decentralized, privacy-preserving platform for issuing, s
 1. **Access**: Verifier receives a link containing the `cid` and decryption key.
 2. **Blockchain Check**: The system calls the smart contract to check validity (not revoked, not expired).
 3. **Decryption**: If valid, the browser decrypts and displays the original credential.
+
+### Privacy Verification Workflow (ZKP)
+1. **Off-Chain Proof**: User generates a ZK proof locally explicitly proving they are over 18, using their birthdate and a secret salt.
+2. **On-Chain Verification**: The smart contract verifies the proof against the stored commitment.
+3. **Zero-Knowledge**: Validates eligibility without the contract or issuer ever seeing the user's private birthdate.
+
+
+## 🔐 Zero-Knowledge Proofs (ZKP)
+
+This project utilizes **Zero-Knowledge Proofs** to enhance user privacy. specifically for **Age Verification**.
+
+- **The Problem**: Proving you are over 18 usually requires showing an ID with your full birthdate.
+- **The Solution**: Using **Circom** circuits, we generate a mathematical proof that `birthdate <= threshold` and `hash(birthdate, salt) == commitment`.
+- **The Result**: The verifier knows you are of age, but *does not know* your exact age or birthdate.
 
 ## 🚀 Tech Stack
 
@@ -38,6 +53,11 @@ The **PrivChain** is a decentralized, privacy-preserving platform for issuing, s
 - **Smart Contract**: Solidity (v0.8.19)
 - **Framework**: Hardhat
 - **Dev Tools**: Node.js test runner (`node:test`)
+
+### Privacy & ZKP
+- **Circuits**: Circom (v2.0)
+- **Proof Generation**: SnarkJS
+- **Hashing**: Poseidon (zk-friendly hash function)
 
 ### Service
 - **IPFS**: Pinata
@@ -101,6 +121,8 @@ The Ethereum smart contract (`CredentialRegistry.sol`) handles:
 - **Issuance**: Minting new credentials to a holder's address.
 - **Revocation**: Marking a credential ID as invalid.
 - **Validation**: Checking expiration dates and revocation status.
+- **Validation**: Checking expiration dates and revocation status.
+- **ZKP Verification**: Verifies Groth16 proofs for privacy-preserving age checks.
 - **Access Control**: Managing issuer permissions.
 
 ## 🤝 Contributing
