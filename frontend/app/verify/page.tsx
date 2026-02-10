@@ -17,6 +17,7 @@ export default function VerifyPage() {
     const [status, setStatus] = useState<"idle" | "verifying" | "valid" | "invalid" | "error">("idle");
     const [errorMsg, setErrorMsg] = useState("");
     const [proofDescription, setProofDescription] = useState<string>("");
+    const [verifiedAttributes, setVerifiedAttributes] = useState<{ l: string, v: string }[]>([]);
 
     // Initialize Scanner when "scan" tab is active
     useEffect(() => {
@@ -75,6 +76,14 @@ export default function VerifyPage() {
 
             if (res.ok && res.isValid) {
                 setStatus("valid");
+                if (data.a && Array.isArray(data.a)) {
+                    setVerifiedAttributes(data.a);
+                } else if (data.n) {
+                    // Backwards compatibility or single field fallback
+                    setVerifiedAttributes([data.n]);
+                } else {
+                    setVerifiedAttributes([]);
+                }
             } else {
                 setStatus("invalid");
                 setErrorMsg("Proof verification failed on-chain.");
@@ -92,6 +101,7 @@ export default function VerifyPage() {
         setScanResult(null);
         setErrorMsg("");
         setProofDescription("");
+        setVerifiedAttributes([]);
         setActiveTab("scan");
         // No reload needed now, state change triggers effect
     };
@@ -154,6 +164,16 @@ export default function VerifyPage() {
                             <h2 className="text-2xl font-bold text-green-700 dark:text-green-400">Verified Valid!</h2>
                             <div className="bg-secondary/50 px-4 py-2 rounded-lg border border-border">
                                 <p className="text-sm font-medium text-foreground">{proofDescription}</p>
+                                {verifiedAttributes.length > 0 && (
+                                    <div className="mt-2 border-t border-border/50 pt-2 space-y-1">
+                                        {verifiedAttributes.map((attr, idx) => (
+                                            <p key={idx} className="text-sm">
+                                                <span className="text-muted-foreground">{attr.l}: </span>
+                                                <span className="font-bold text-primary">{attr.v}</span>
+                                            </p>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <p className="text-muted-foreground text-sm">
                                 The proof is mathematically valid and the credential exists on-chain.

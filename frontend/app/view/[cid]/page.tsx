@@ -47,6 +47,40 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
     const [verifyingZKP, setVerifyingZKP] = useState(false);
     const [qrData, setQrData] = useState<string>("");
     const [zkpError, setZkpError] = useState<string>("");
+    const [solProof, setSolProof] = useState<any>(null); // Store proof for QR regeneration
+    const [selectedFields, setSelectedFields] = useState<string[]>([]);
+
+    // Helper: Find Label
+    const getFieldLabel = (key: string) => {
+        if (!data) return key;
+        const typeId = data.metadata.typeId;
+        if (typeId) {
+            const template = templates.find(t => t.id === typeId);
+            const field = template?.fields.find(f => f.key === key);
+            if (field) return field.label;
+        }
+        return key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase());
+    };
+
+    // Effect to regenerate QR when selection changes
+    useEffect(() => {
+        if (zkpSuccess && solProof && credId) {
+            const payload: any = {
+                pid: credId.slice(0, 10),
+                p: solProof,
+                c: credId,
+                d: "Age Requirement (18+)"
+            };
+
+            if (selectedFields.length > 0 && data?.metadata) {
+                payload.a = selectedFields.map(key => ({
+                    l: getFieldLabel(key),
+                    v: data.metadata[key]
+                }));
+            }
+            setQrData(JSON.stringify(payload));
+        }
+    }, [zkpSuccess, solProof, credId, selectedFields, data]);
 
     const handleRevoke = async () => {
         if (!confirm("Are you sure you want to revoke this credential? This cannot be undone.")) return;
@@ -147,17 +181,7 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
         }
     }, [credId]);
 
-    // Helper: Find Label
-    const getFieldLabel = (key: string) => {
-        if (!data) return key;
-        const typeId = data.metadata.typeId;
-        if (typeId) {
-            const template = templates.find(t => t.id === typeId);
-            const field = template?.fields.find(f => f.key === key);
-            if (field) return field.label;
-        }
-        return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-    };
+
 
     const handleProveAge = async () => {
         if (!data || !data.metadata.zkp) return;
@@ -186,15 +210,7 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
 
             if (res.ok && res.isValid) {
                 setZkpSuccess(true);
-                // Set QR Data: { proof, publicSignals, credId }
-                // We keep it minimal for QR capacity
-                const qrPayload = JSON.stringify({
-                    pid: credId.slice(0, 10), // partial ID for check
-                    p: solProof, // The solidity formatted proof
-                    c: credId, // Full Credential ID
-                    d: "Age Requirement (18+)" // Description of what is proved
-                });
-                setQrData(qrPayload);
+                setSolProof(solProof);
             } else {
                 alert("Verification Failed: Proof is invalid or conditions not met.");
             }
@@ -269,12 +285,50 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
 
                         {/* QR Code Section */}
                         {qrData && (
-                            <div className="flex flex-col items-center justify-center p-6 rounded-xl border border-border mt-2 bg-secondary/20">
-                                <p className="text-sm font-semibold mb-4 text-center text-muted-foreground">Scan to Verify Offline</p>
+                            <div className="p-6 rounded-xl border border-border mt-2 bg-secondary/20">
 
-                                {/* QR Padding must remain white for contrast if dark mode */}
-                                <div className="p-4 bg-white rounded-lg shadow-sm">
-                                    <QRCode value={qrData} size={180} />
+                                <div className="flex flex-col lg:flex-row gap-8 items-center lg:items-start justify-center">
+
+                                    {/* Left/Top: Options */}
+                                    <div className="w-full max-w-xs shrink-0">
+                                        <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">
+                                            Include Identity in Proof (Optional)
+                                        </label>
+                                        <div className="flex flex-col gap-2 max-h-40 overflow-y-auto px-1">
+                                            {displayKeys.map(key => (
+                                                <div key={key} className="flex items-center space-x-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`chk-${key}`}
+                                                        checked={selectedFields.includes(key)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedFields([...selectedFields, key]);
+                                                            } else {
+                                                                setSelectedFields(selectedFields.filter(k => k !== key));
+                                                            }
+                                                        }}
+                                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                    />
+                                                    <label
+                                                        htmlFor={`chk-${key}`}
+                                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+                                                    >
+                                                        {getFieldLabel(key)}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Right/Bottom: QR Display */}
+                                    <div className="flex flex-col items-center">
+                                        <p className="text-sm font-semibold mb-4 text-center text-muted-foreground">Scan to Verify Offline</p>
+                                        {/* QR Padding must remain white for contrast if dark mode */}
+                                        <div className="p-4 bg-white rounded-lg shadow-sm">
+                                            <QRCode value={qrData} size={180} />
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="w-full mt-6 space-y-2">
