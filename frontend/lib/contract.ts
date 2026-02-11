@@ -337,4 +337,31 @@ const verifyAge = async (credId: string, pA: any, pB: any, pC: any, pubSignals: 
     }
 };
 
-export { fetchRole, issueCredential, getMyCredentials, getCredentialDetails, checkIsAdmin, getIssuedCredentials, revokeCredential, checkIsIssuer, getAllIssuers, addIssuer, removeIssuer, verifyAge };
+// function verifyCGPA(...)
+const verifyCGPA = async (credId: string, pA: any, pB: any, pC: any, pubSignals: any): Promise<{ ok: boolean; isValid?: boolean; error?: any }> => {
+    try {
+        const client = initClient();
+        const formattedCredId = credId.startsWith("0x") ? credId : `0x${credId}`;
+
+        // We use readContract to simulate the verification for free
+        const isValid = await client.readContract({
+            address: contractAddress,
+            abi: contractAbi,
+            functionName: "verifyCGPA",
+            args: [
+                formattedCredId as `0x${string}`,
+                pA,
+                pB,
+                pC,
+                pubSignals[1] // threshold (pubSignals[0] is commitment)
+            ]
+        });
+
+        return { ok: true, isValid };
+    } catch (err) {
+        console.error(err);
+        return { ok: false, error: err };
+    }
+};
+
+export { fetchRole, issueCredential, getMyCredentials, getCredentialDetails, checkIsAdmin, getIssuedCredentials, revokeCredential, checkIsIssuer, getAllIssuers, addIssuer, removeIssuer, verifyAge, verifyCGPA };

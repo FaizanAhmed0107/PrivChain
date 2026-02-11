@@ -1,5 +1,4 @@
 
-
 // @ts-ignore
 export async function generateProof(birthdate: number, salt: string) {
     // @ts-ignore

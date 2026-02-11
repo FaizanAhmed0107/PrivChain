@@ -18,6 +18,7 @@ contract CredentialRegistry is AccessControl {
 
     // ZKP Verifier Contract
     IGroth16Verifier public verifier;
+    IGroth16Verifier public cgpaVerifier;
 
     struct Credential {
         string ipfsHash;
@@ -54,8 +55,9 @@ contract CredentialRegistry is AccessControl {
     event IssuerRemoved(address indexed issuer);
     event ProofVerified(bytes32 indexed credId, bool success);
 
-    constructor(address _verifierAddress) {
+    constructor(address _verifierAddress, address _cgpaVerifierAddress) {
         verifier = IGroth16Verifier(_verifierAddress);
+        cgpaVerifier = IGroth16Verifier(_cgpaVerifierAddress);
 
         // Give deployer admin + issuer role
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -213,6 +215,32 @@ contract CredentialRegistry is AccessControl {
 
         // Call the Verifier Contract
         bool result = verifier.verifyProof(_pA, _pB, _pC, pubSignals);
+
+        emit ProofVerified(_credId, result);
+        return result;
+    }
+
+    // ------------------------------------------------------
+    // 5b. ZKP Verification: Prove CGPA
+    // ------------------------------------------------------
+    function verifyCGPA(
+        bytes32 _credId,
+        uint[2] calldata _pA,
+        uint[2][2] calldata _pB,
+        uint[2] calldata _pC,
+        uint256 _threshold // Public Signal 2
+    ) external returns (bool) {
+        Credential memory cred = credentials[_credId];
+        require(cred.issuanceDate != 0, "Credential not found");
+        require(!cred.isRevoked, "Credential revoked");
+
+        // Public signals: [commitment, threshold]
+        uint[2] memory pubSignals;
+        pubSignals[0] = uint256(cred.commitment);
+        pubSignals[1] = _threshold;
+
+        // Call the CGPA Verifier Contract
+        bool result = cgpaVerifier.verifyProof(_pA, _pB, _pC, pubSignals);
 
         emit ProofVerified(_credId, result);
         return result;

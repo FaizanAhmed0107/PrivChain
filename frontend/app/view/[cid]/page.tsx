@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { getCredentialDetails, revokeCredential, verifyAge } from "@/lib/contract";
+import { getCredentialDetails, revokeCredential, verifyAge, verifyCGPA } from "@/lib/contract";
 import { useEffect, useState, use } from "react";
 import { decryptBundle } from "@/utils/bundleEncryption";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -9,9 +9,11 @@ import { useWallet } from "@/lib/wallet";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Loader2, CheckCircle, XCircle, AlertCircle, FileText, Download, Shield, Calendar, User, Eye, AlertTriangle, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { generateProof, exportSolidityProof } from "@/utils/zkp";
+import { generateCGPAProof } from "@/lib/zk/cgpa-prover";
 import QRCode from "react-qr-code";
 
 interface CredentialData {
@@ -50,6 +52,10 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
     const [solProof, setSolProof] = useState<any>(null); // Store proof for QR regeneration
     const [selectedFields, setSelectedFields] = useState<string[]>([]);
 
+    // CGPA State
+    const [cgpaThreshold, setCgpaThreshold] = useState<string>("");
+    const [showCGPAInput, setShowCGPAInput] = useState(false);
+
     // Helper: Find Label
     const getFieldLabel = (key: string) => {
         if (!data) return key;
@@ -69,7 +75,8 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
                 pid: credId.slice(0, 10),
                 p: solProof,
                 c: credId,
-                d: "Age Requirement (18+)"
+                d: solProof.d || "Age Requirement (18+)",
+                t: solProof.t || "age"
             };
 
             if (selectedFields.length > 0 && data?.metadata) {
@@ -228,6 +235,55 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
         }
     };
 
+    const handleProveCGPA = async () => {
+        if (!data || !data.metadata.zkp) return;
+        const thresholdVal = parseFloat(cgpaThreshold);
+        if (isNaN(thresholdVal)) {
+            alert("Please enter a valid number for threshold.");
+            return;
+        }
+
+        try {
+            setVerifyingZKP(true);
+            setZkpError("");
+
+            // 1. Generate Proof
+            const { cgpa, salt } = data.metadata.zkp;
+            // cgpa should be in the metadata.zkp object
+            if (cgpa === undefined) throw new Error("CGPA data not found in credential");
+
+            const { proof, publicSignals } = await generateCGPAProof(cgpa, salt, thresholdVal);
+
+            // 2. Format
+            const solProof = exportSolidityProof(proof, publicSignals);
+
+            // 3. Verify on Chain
+            if (!credId) throw new Error("Credential ID missing");
+
+            const res = await verifyCGPA(
+                credId,
+                solProof.pA,
+                solProof.pB,
+                solProof.pC,
+                solProof.publicSignals
+            );
+
+            if (res.ok && res.isValid) {
+                setZkpSuccess(true);
+                setSolProof({ ...solProof, d: `CGPA Verified (> ${thresholdVal})`, t: "cgpa" });
+            } else {
+                alert("Verification Failed: CGPA is likely below the threshold.");
+            }
+
+        } catch (e) {
+            console.error(e);
+            setZkpError("Error proving CGPA: " + (e as Error).message);
+        } finally {
+            setVerifyingZKP(false);
+            setShowCGPAInput(false);
+        }
+    };
+
     // ... (rest of render)
 
     if (status) {
@@ -280,7 +336,7 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
                     <div className="flex flex-col gap-4 w-full animate-in slide-in-from-top-2">
                         <div className="px-6 py-3 rounded-full font-bold flex items-center gap-3 shadow-sm border bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800">
                             <Shield className="w-6 h-6" />
-                            <span className="text-lg tracking-tight">Age Verified (18+) via ZK Proof</span>
+                            <span className="text-lg tracking-tight">{solProof?.d || "Age Verified (18+) via ZK Proof"}</span>
                         </div>
 
                         {/* QR Code Section */}
@@ -406,17 +462,52 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
 
                             {/* ZKP Action */}
                             {data.metadata.zkp && !zkpSuccess && (
-                                <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
-                                    <p className="text-xs font-semibold text-purple-800 dark:text-purple-300 mb-2 uppercase flex items-center gap-1">
+                                <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800 space-y-3">
+                                    <p className="text-xs font-semibold text-purple-800 dark:text-purple-300 uppercase flex items-center gap-1">
                                         <Shield className="h-3 w-3" /> Privacy Action
                                     </p>
-                                    <p className="text-sm text-purple-700 dark:text-purple-400 mb-3">
-                                        This credential contains hidden birthdate data. Verify age (18+) without revealing it?
-                                    </p>
-                                    <Button size="sm" onClick={handleProveAge} disabled={verifyingZKP} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
-                                        {verifyingZKP ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                                        Prove Age (ZKP)
-                                    </Button>
+
+                                    {/* Age Verification (Existing) */}
+                                    {data.metadata.zkp.birthdate && (
+                                        <>
+                                            <p className="text-sm text-purple-700 dark:text-purple-400">
+                                                Verify age (18+) without revealing birthdate?
+                                            </p>
+                                            <Button size="sm" onClick={handleProveAge} disabled={verifyingZKP} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                                                {verifyingZKP ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                                                Prove Age (18+)
+                                            </Button>
+                                        </>
+                                    )}
+
+                                    {/* CGPA Verification (New) */}
+                                    {data.metadata.zkp.cgpa !== undefined && (
+                                        <>
+                                            <div className="border-t border-purple-200 dark:border-purple-800 my-2 pt-2">
+                                                <p className="text-sm text-purple-700 dark:text-purple-400 mb-2">
+                                                    Verify CGPA is above a threshold?
+                                                </p>
+                                                {!showCGPAInput ? (
+                                                    <Button size="sm" variant="outline" onClick={() => setShowCGPAInput(true)} disabled={verifyingZKP} className="w-full border-purple-600 text-purple-600 hover:bg-purple-100">
+                                                        Prove CGPA
+                                                    </Button>
+                                                ) : (
+                                                    <div className="flex gap-2">
+                                                        <Input
+                                                            type="number"
+                                                            placeholder="Threshold (e.g. 7.0)"
+                                                            value={cgpaThreshold}
+                                                            onChange={(e) => setCgpaThreshold(e.target.value)}
+                                                            className="h-9 bg-white dark:bg-black"
+                                                        />
+                                                        <Button size="sm" onClick={handleProveCGPA} disabled={verifyingZKP || !cgpaThreshold} className="bg-purple-600 hover:bg-purple-700 text-white">
+                                                            {verifyingZKP ? <Loader2 className="h-4 w-4 animate-spin" /> : "Prove"}
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             )}
 

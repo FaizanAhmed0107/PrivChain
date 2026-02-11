@@ -17,6 +17,7 @@ import { Loader2, UploadCloud, FileText, CheckCircle, ExternalLink, AlertTriangl
 import Link from "next/link";
 
 import { generateSalt, generateCommitment } from "@/utils/zkp";
+import { generateCGPACommitment } from "@/lib/zk/cgpa-prover";
 
 export default function IssuePage() {
     const { activeTemplates, loading: loadingTemplates } = useTemplates();
@@ -135,17 +136,32 @@ export default function IssuePage() {
             let zkpData = null;
 
             // ZKP Logic
-            if (formData["birthdate"]) {
-                setStatus("Generating ZK Commitment...");
+            const zkpType = formData["zkpType"];
+            if (zkpType === "age" && formData["birthdate"]) {
+                setStatus("Generating Age Commitment...");
                 const salt = generateSalt();
                 const birthdateTimestamp = Math.floor(new Date(formData["birthdate"]).getTime() / 1000);
 
                 const comm = await generateCommitment(birthdateTimestamp, salt);
-                commitment = `0x${BigInt(comm).toString(16).padStart(64, '0')}`; // Convert to hex32
+                commitment = `0x${BigInt(comm).toString(16).padStart(64, '0')}`;
 
                 zkpData = {
+                    type: "age",
                     salt: salt,
                     birthdate: birthdateTimestamp
+                };
+            } else if (zkpType === "cgpa" && formData["cgpa"]) {
+                setStatus("Generating CGPA Commitment...");
+                const salt = generateSalt();
+                const cgpaVal = parseFloat(formData["cgpa"]);
+
+                const comm = await generateCGPACommitment(cgpaVal, salt);
+                commitment = `0x${BigInt(comm).toString(16).padStart(64, '0')}`;
+
+                zkpData = {
+                    type: "cgpa",
+                    salt: salt,
+                    cgpa: cgpaVal
                 };
             }
 
@@ -311,20 +327,53 @@ export default function IssuePage() {
                         </div>
                     </div>
 
-                    {/* ZKP Birthdate Input */}
-                    <div className="space-y-2 rounded-lg border p-4 bg-muted/20">
-                        <label className="text-sm font-medium leading-none flex items-center gap-2">
-                            Birthday (Zero-Knowledge Proof)
-                            <Badge variant="outline" className="text-[10px] h-5">Optional</Badge>
-                        </label>
-                        <p className="text-xs text-muted-foreground">
-                            If provided, the holder can prove they are 18+ without revealing the exact date.
-                        </p>
-                        <Input
-                            type="date"
-                            value={formData["birthdate"] || ""}
-                            onChange={e => handleInputChange("birthdate", e.target.value)}
-                        />
+                    {/* ZKP Section */}
+                    <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium leading-none flex items-center gap-2">
+                                Privacy Feature (Zero-Knowledge Proof)
+                                <Badge variant="outline" className="text-[10px] h-5">Optional</Badge>
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                                Add a cryptographic proof capability to this credential.
+                            </p>
+                            <select
+                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                value={formData["zkpType"] || "none"}
+                                onChange={(e) => handleInputChange("zkpType", e.target.value)}
+                            >
+                                <option value="none">None</option>
+                                <option value="age">Age Verification (18+)</option>
+                                <option value="cgpa">CGPA Verification (Threshold)</option>
+                            </select>
+                        </div>
+
+                        {formData["zkpType"] === "age" && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                                <label className="text-xs font-medium">Birthdate for Proof</label>
+                                <Input
+                                    type="date"
+                                    value={formData["birthdate"] || ""}
+                                    onChange={e => handleInputChange("birthdate", e.target.value)}
+                                />
+                            </div>
+                        )}
+
+                        {formData["zkpType"] === "cgpa" && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                                <label className="text-xs font-medium">CGPA Value (e.g. 8.5)</label>
+                                <Input
+                                    type="number"
+                                    placeholder="Enter CGPA"
+                                    step="0.01"
+                                    value={formData["cgpa"] || ""}
+                                    onChange={e => handleInputChange("cgpa", e.target.value)}
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                    This value will be hidden but used to prove basic thresholds.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     <div className="relative">

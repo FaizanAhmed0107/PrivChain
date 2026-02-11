@@ -72,7 +72,13 @@ export default function VerifyPage() {
             else setProofDescription("Age Requirement (18+)"); // Fallback
 
             // Call Smart Contract to Verify
-            const res = await verifyAge(credId, pA, pB, pC, publicSignals);
+            let res;
+            if (data.t === "cgpa") {
+                const { verifyCGPA } = await import("@/lib/contract");
+                res = await verifyCGPA(credId, pA, pB, pC, publicSignals);
+            } else {
+                res = await verifyAge(credId, pA, pB, pC, publicSignals);
+            }
 
             if (res.ok && res.isValid) {
                 setStatus("valid");
