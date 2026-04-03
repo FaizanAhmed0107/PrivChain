@@ -110,7 +110,8 @@ export default function DashboardPage() {
                     issuer: bc!.issuer,
                     metadata: meta.metadata || { typeName: "Unknown Credential", description: "Metadata unavailable" }
                 };
-            }).filter((c): c is EncryptedCredential => c !== null);
+            }).filter((c): c is EncryptedCredential => c !== null)
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
             setCredentials(finalCredentials);
         } catch (e) {
@@ -164,7 +165,7 @@ export default function DashboardPage() {
                     issuer: bc!.issuer,
                     metadata: meta?.metadata || { typeName: "Issued Credential", description: "No metadata found" }
                 };
-            });
+            }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
             setIssuedCredentials(finalIssuedCredentials);
         } catch (e) {

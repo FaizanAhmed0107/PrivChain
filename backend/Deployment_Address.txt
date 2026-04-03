@@ -1,0 +1,4 @@
+CredentialRegistryModule#CredentialRegistry - 0xC65529E65451F0e5E3b878a49b339139c16bc51B
+ZKPDeploymentModule#CGPAVerifier - 0xA1F5279a446535A0d905c9D647747A383d448fBF
+ZKPDeploymentModule#Groth16Verifier - 0xd8eCB540a281151766f65a27c685f51b12161c97
+ZKPDeploymentModule#CredentialRegistry - 0x33DA3B86fcf59166CC43739a1f3AE1DB34d603F5

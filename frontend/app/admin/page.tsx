@@ -46,6 +46,7 @@ export default function AdminPage() {
     const [tempKey, setTempKey] = useState("");
     const [tempLabel, setTempLabel] = useState("");
     const [tempType, setTempType] = useState<"text" | "date" | "number" | "email">("text");
+    const [tempZkp, setTempZkp] = useState<"none" | "age" | "cgpa">("none");
 
     useEffect(() => {
         if (isAdmin) {
@@ -92,9 +93,10 @@ export default function AdminPage() {
 
     const handleAddField = () => {
         if (!tempKey || !tempLabel) return;
-        setNewFields([...newFields, { key: tempKey, label: tempLabel, type: tempType }]);
+        setNewFields([...newFields, { key: tempKey, label: tempLabel, type: tempType, zkpType: tempZkp }]);
         setTempKey("");
         setTempLabel("");
+        setTempZkp("none");
     };
 
     const handleCreateTemplate = async () => {
@@ -259,6 +261,15 @@ export default function AdminPage() {
                                         <option value="date">Date</option>
                                         <option value="number">Num</option>
                                     </select>
+                                    <select
+                                        className="h-8 w-24 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                        value={tempZkp}
+                                        onChange={e => setTempZkp(e.target.value as any)}
+                                    >
+                                        <option value="none">No ZKP</option>
+                                        <option value="age">Age</option>
+                                        <option value="cgpa">CGPA</option>
+                                    </select>
                                     <Button size="sm" variant="secondary" onClick={handleAddField} className="h-8 w-8 p-0" title="Add Field">
                                         <Plus className="h-4 w-4" />
                                     </Button>
@@ -269,7 +280,7 @@ export default function AdminPage() {
                                 <div className="flex flex-wrap gap-2 pt-2">
                                     {newFields.map((f, i) => (
                                         <Badge key={i} variant="outline" className="bg-background text-indigo-600 border-indigo-200">
-                                            {f.key} <span className="text-[10px] ml-1 opacity-50">({f.type})</span>
+                                            {f.key} <span className="text-[10px] ml-1 opacity-50">({f.type}{f.zkpType && f.zkpType !== 'none' ? ` - ZKP: ${f.zkpType}` : ''})</span>
                                         </Badge>
                                     ))}
                                 </div>
