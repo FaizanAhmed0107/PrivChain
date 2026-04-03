@@ -14,6 +14,8 @@ The **PrivChain** is a decentralized, privacy-preserving platform for issuing, s
 - **Multiple ZK Verification Profiles**: Support for Age Verification (18+) and CGPA Threshold Verification within the same ecosystem.
 - **Offline QR Code Scanner**: Robust built-in scanner supporting camera and image payloads with automated state handling.
 - **ZKP Payload Compression**: Integrated DEFLATE data compression (`pako`) to minimize the footprint of dense Zero-Knowledge proofs inside QR codes.
+- **Dynamic ZKP Template Schemas**: Secure administrator configuration console permits explicit mapping of mandatory Zero-Knowledge parameters directly inside custom-defined credential structures (bypassing duplicate UI input natively).
+- **Expanded Mobile Identity QR Proofs**: Cryptographic zero-knowledge QR footprints now fully encapsulate extended variable anchors such as personal Holder Names within their compressed definitions.
 - **Live Testnet Deployment**: Fully integrated and deployed on the public Sepolia Ethereum network.
 
 ## 📸 How It Works

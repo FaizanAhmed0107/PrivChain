@@ -11,7 +11,9 @@ The frontend allows users to:
 - **Verify Credential**: View and verify credentials via shared links.
 - **ZKP Age Verification**: Generate client-side zero-knowledge proofs to prove age > 18 without revealing birthdate.
 - **ZKP CGPA Verification**: Generate mathematical proofs targeting academic grade thresholds locally.
+- **Dynamic ZKP Document Templates**: Admin panel allows explicit tagging of mandatory credential fields (e.g. Birthdate) directly into ZKP commitment generation without duplicate input required from the issuer.
 - **High-Density QR Compression**: Encodes robust proofs into compact QR Codes using DEFLATE data compression.
+- **Expanded Scannable Identity**: Seamless QR data packaging extending root personal identities (Names, Document Tags) directly into verification layers.
 - **QR Proof Scanner**: Seamless built-in verification scanner supporting physical camera and uploaded images.
 
 ## Tech Stack

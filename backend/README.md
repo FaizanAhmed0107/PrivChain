@@ -19,7 +19,8 @@ The core of this project is the `CredentialRegistry.sol` smart contract.
   - Verifies **Groth16** proofs submitted by the frontend.
   - Ensures `birthdate < threshold` without revealing birthdate.
   - Ensures `cgpa > threshold` without revealing precise GPA.
-  - Validates `commitment` against the stored credential data.
+  - Secures robust credential template definitions dynamically via cryptographically linked structural commitments.
+  - Validates `commitment` against the stored credential data securely.
 
 ## Prerequisites
 
