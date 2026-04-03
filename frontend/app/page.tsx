@@ -22,7 +22,7 @@ export default function LandingPage() {
         <div className="container relative z-10 px-4 md:px-8 mx-auto text-center max-w-5xl">
           <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
-            v2.5 Now Live
+            v3.1 Now Live
           </div>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-500 to-indigo-600 animate-in fade-in slide-in-from-bottom-6 duration-700">
             PrivChain

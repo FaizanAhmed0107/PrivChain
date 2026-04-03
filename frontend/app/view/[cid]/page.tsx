@@ -85,7 +85,20 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
                     v: data.metadata[key]
                 }));
             }
-            setQrData(JSON.stringify(payload));
+            
+            const jsonStr = JSON.stringify(payload);
+            import("pako").then((pako) => {
+                const compressed = pako.deflate(jsonStr);
+                let binary = '';
+                for (let i = 0; i < compressed.byteLength; i++) {
+                    binary += String.fromCharCode(compressed[i]);
+                }
+                const base64Str = window.btoa(binary);
+                setQrData(base64Str);
+            }).catch(e => {
+                console.error("Compression failed", e);
+                setQrData(jsonStr); // fallback
+            });
         }
     }, [zkpSuccess, solProof, credId, selectedFields, data]);
 

@@ -88,7 +88,22 @@ export default function VerifyPage() {
     const verifyProof = async (jsonString: string) => {
         try {
             setStatus("verifying");
-            const data = JSON.parse(jsonString);
+            let data;
+
+            // Try to detect if it's raw JSON or base64 compressed
+            if (jsonString.trim().startsWith("{")) {
+                data = JSON.parse(jsonString);
+            } else {
+                // Decompress
+                const binaryStr = window.atob(jsonString);
+                const bytes = new Uint8Array(binaryStr.length);
+                for (let i = 0; i < binaryStr.length; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                }
+                const pako = await import("pako");
+                const decompressed = pako.inflate(bytes, { to: 'string' });
+                data = JSON.parse(decompressed);
+            }
 
             // Expected Format: { pid: "...", p: { pA, pB, pC, publicSignals }, c: "full_id", d: "desc" }
             if (!data.p || !data.c) throw new Error("Invalid QR Data Format");
