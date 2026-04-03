@@ -1,11 +1,11 @@
 import { createPublicClient, createWalletClient, custom, http } from 'viem';
-import { hardhat } from 'viem/chains';
+import { hardhat, sepolia } from 'viem/chains';
 import { contractAddress, contractAbi, DEFAULT_ADMIN_ROLE } from './contractDetails';
 
 const initClient = () => {
     // 1. Setup Client
     const client = createPublicClient({
-        chain: hardhat,
+        chain: sepolia,
         transport: http(),
     });
 
@@ -39,11 +39,12 @@ const issueCredential = async (targetAddress: `0x${string}`, ipfsHash: string, v
         }
 
         const walletClient = createWalletClient({
-            chain: hardhat,
+            chain: sepolia,
             transport: custom((window as any).ethereum)
         });
 
         const [account] = await walletClient.requestAddresses();
+        await walletClient.switchChain({ id: sepolia.id });
 
         console.log("validUntil", validUntil);
         console.log("commitment", commitment);
@@ -88,7 +89,7 @@ const getMyCredentials = async (): Promise<{ ok: boolean; data?: any; error?: an
         }
 
         const walletClient = createWalletClient({
-            chain: hardhat,
+            chain: sepolia,
             transport: custom((window as any).ethereum)
         });
 
@@ -147,7 +148,7 @@ const getIssuedCredentials = async (): Promise<{ ok: boolean; data?: any; error?
         }
 
         const walletClient = createWalletClient({
-            chain: hardhat,
+            chain: sepolia,
             transport: custom((window as any).ethereum)
         });
 
@@ -176,11 +177,12 @@ const revokeCredential = async (credId: string): Promise<{ ok: boolean; data?: s
         }
 
         const walletClient = createWalletClient({
-            chain: hardhat,
+            chain: sepolia,
             transport: custom((window as any).ethereum)
         });
 
         const [account] = await walletClient.requestAddresses();
+        await walletClient.switchChain({ id: sepolia.id });
 
         const hash = await walletClient.writeContract({
             address: contractAddress,
@@ -261,11 +263,12 @@ const addIssuer = async (issuerAddress: string): Promise<{ ok: boolean; data?: s
         }
 
         const walletClient = createWalletClient({
-            chain: hardhat,
+            chain: sepolia,
             transport: custom((window as any).ethereum)
         });
 
         const [account] = await walletClient.requestAddresses();
+        await walletClient.switchChain({ id: sepolia.id });
 
         const hash = await walletClient.writeContract({
             address: contractAddress,
@@ -289,11 +292,12 @@ const removeIssuer = async (issuerAddress: string): Promise<{ ok: boolean; data?
         }
 
         const walletClient = createWalletClient({
-            chain: hardhat,
+            chain: sepolia,
             transport: custom((window as any).ethereum)
         });
 
         const [account] = await walletClient.requestAddresses();
+        await walletClient.switchChain({ id: sepolia.id });
 
         const hash = await walletClient.writeContract({
             address: contractAddress,

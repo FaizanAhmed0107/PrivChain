@@ -37,10 +37,9 @@ export default defineConfig({
       type: "http",
       chainType: "l1",
       url: SEPOLIA_RPC_URL,
-      accounts: (SEPOLIA_PRIVATE_KEY || "").split(",")
-        .map((k) => k.replace(/[\[\]"]/g, "").trim())
-        .filter((k) => !!k)
-        .map((k) => (k.startsWith("0x") ? k : `0x${k}`)),
+      accounts: SEPOLIA_PRIVATE_KEY
+        ? [SEPOLIA_PRIVATE_KEY.startsWith("0x") ? SEPOLIA_PRIVATE_KEY : `0x${SEPOLIA_PRIVATE_KEY}`]
+        : [],
     },
   },
 });

@@ -1,7 +1,7 @@
 import { parseAbi } from "viem";
 
-export const contractAddress = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
-// export const contractAddress = "0xC65529E65451F0e5E3b878a49b339139c16bc51B";
+// export const contractAddress = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";   //LOCAL
+export const contractAddress = "0x33DA3B86fcf59166CC43739a1f3AE1DB34d603F5";   //SEPOLIA
 
 export const DEFAULT_ADMIN_ROLE = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
