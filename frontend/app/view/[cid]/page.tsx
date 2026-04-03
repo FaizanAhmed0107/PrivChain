@@ -381,8 +381,8 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
                                     <div className="flex flex-col items-center">
                                         <p className="text-sm font-semibold mb-4 text-center text-muted-foreground">Scan to Verify Offline</p>
                                         {/* QR Padding must remain white for contrast if dark mode */}
-                                        <div className="p-4 bg-white rounded-lg shadow-sm">
-                                            <QRCode value={qrData} size={180} />
+                                        <div className="p-4 bg-white rounded-lg shadow-sm max-w-[350px] w-full flex justify-center">
+                                            <QRCode value={qrData} size={300} style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
                                         </div>
                                     </div>
                                 </div>

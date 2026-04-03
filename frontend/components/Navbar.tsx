@@ -1,17 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { WalletConnect } from "@/components/WalletConnect";
 import { useUserRole } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, LayoutDashboard, UploadCloud, ShieldAlert, Scan } from "lucide-react";
+import { ShieldCheck, LayoutDashboard, UploadCloud, ShieldAlert, Scan, Menu, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Sun, Moon } from "lucide-react";
 
 export function Navbar() {
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const pathname = usePathname();
     const { isIssuer, isAdmin } = useUserRole();
     const { theme, setTheme } = useTheme();
@@ -90,7 +92,7 @@ export function Navbar() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-                        className="rounded-full"
+                        className="rounded-full hidden md:flex"
                     >
                         <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                         <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -98,8 +100,64 @@ export function Navbar() {
                     </Button>
 
                     <WalletConnect />
+
+                    {/* Mobile Menu Toggle */}
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="md:hidden"
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    >
+                        {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                    </Button>
                 </div>
             </div>
+
+            {/* Mobile Menu Dropdown */}
+            {isMobileMenuOpen && (
+                <div className="md:hidden border-t border-border/40 bg-background px-4 py-4 space-y-4">
+                    <div className="flex flex-col gap-2">
+                        {navItems.map(
+                            (item) =>
+                                item.visible && (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                        className={cn(
+                                            "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200",
+                                            pathname === item.href
+                                                ? "bg-primary/10 text-primary shadow-sm"
+                                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                                        )}
+                                    >
+                                        <item.icon className="h-5 w-5" />
+                                        {item.name}
+                                    </Link>
+                                )
+                        )}
+                    </div>
+                    {(isIssuer || isAdmin) && (
+                        <div className="flex gap-2 px-4 pt-2 border-t border-border/40">
+                            {isIssuer && <Badge variant="secondary" className="bg-blue-500/10 text-blue-600">Issuer</Badge>}
+                            {isAdmin && <Badge variant="secondary" className="bg-red-500/10 text-red-600">Admin</Badge>}
+                        </div>
+                    )}
+                    <div className="flex items-center justify-between px-4 pt-2 border-t border-border/40">
+                        <span className="text-sm font-medium text-muted-foreground">Theme</span>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+                            className="rounded-full"
+                        >
+                            <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                            <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                            <span className="sr-only">Toggle theme</span>
+                        </Button>
+                    </div>
+                </div>
+            )}
         </nav>
     );
 }

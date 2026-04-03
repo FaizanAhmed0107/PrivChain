@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,31 +19,60 @@ export default function VerifyPage() {
     const [proofDescription, setProofDescription] = useState<string>("");
     const [verifiedAttributes, setVerifiedAttributes] = useState<{ l: string, v: string }[]>([]);
 
+    const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
     // Initialize Scanner when "scan" tab is active
     useEffect(() => {
         if (activeTab !== "scan" || status !== "idle") return;
 
+        let isMounted = true;
+
         // Slight delay to ensure DOM is ready
         const timer = setTimeout(() => {
-            const scanner = new Html5QrcodeScanner(
-                "reader",
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                /* verbose= */ false
-            );
+            if (!isMounted) return;
+            const element = document.getElementById("reader");
+            if (!element) return;
 
-            scanner.render((decodedText) => {
-                handleScanSuccess(decodedText);
-                scanner.clear();
-            }, (error) => {
-                // console.warn(error);
-            });
+            // Initialize scanner only if we don't have one active
+            if (!scannerRef.current) {
+                try {
+                    scannerRef.current = new Html5QrcodeScanner(
+                        "reader",
+                        {
+                            fps: 10,
+                            qrbox: { width: 250, height: 250 },
+                            supportedScanTypes: [0, 1], // Explicitly enable both camera and file
+                        },
+                        /* verbose= */ false
+                    );
 
-            return () => {
-                try { scanner.clear(); } catch (e) { }
-            };
+                    scannerRef.current.render((decodedText: string) => {
+                        handleScanSuccess(decodedText);
+                        if (scannerRef.current) {
+                            scannerRef.current.clear().catch(console.error);
+                            scannerRef.current = null;
+                        }
+                    }, (error: any) => {
+                        // ignore continuous scanning errors
+                    });
+                } catch (e) {
+                    console.error("Failed to initialize scanner", e);
+                }
+            }
         }, 100);
 
-        return () => clearTimeout(timer);
+        return () => {
+            isMounted = false;
+            clearTimeout(timer);
+            if (scannerRef.current) {
+                try {
+                    scannerRef.current.clear().catch(console.error);
+                } catch (e) {
+                    console.error("Failed to clear scanner on unmount", e);
+                }
+                scannerRef.current = null;
+            }
+        };
     }, [activeTab, status]);
 
     const handleScanSuccess = (decodedText: string) => {
