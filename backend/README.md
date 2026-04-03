@@ -18,6 +18,7 @@ The core of this project is the `CredentialRegistry.sol` smart contract.
 - **ZKP Verification**:
   - Verifies **Groth16** proofs submitted by the frontend.
   - Ensures `birthdate < threshold` without revealing birthdate.
+  - Ensures `cgpa > threshold` without revealing precise GPA.
   - Validates `commitment` against the stored credential data.
 
 ## Prerequisites
@@ -92,3 +93,5 @@ The `circuits/` directory contains the ZK logic:
     - **Private Inputs**: User's `birthdate` and `salt`.
     - **Public Inputs**: `commitment` (on-chain hash) and `thresholdDate`.
     - **Logic**: Proves `birthdate <= threshold` AND `Poseidon(birthdate, salt) == commitment`.
+- **cgpa.circom**: The circuit used for verifying academic grade achievements.
+    - **Logic**: Proves a student's `cgpa` securely surpasses a dynamic `threshold`.

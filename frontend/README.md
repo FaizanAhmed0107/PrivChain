@@ -10,6 +10,9 @@ The frontend allows users to:
 - **Issue Credential**: (For approved issuers) Upload files to IPFS and mint credentials on-chain.
 - **Verify Credential**: View and verify credentials via shared links.
 - **ZKP Age Verification**: Generate client-side zero-knowledge proofs to prove age > 18 without revealing birthdate.
+- **ZKP CGPA Verification**: Generate mathematical proofs targeting academic grade thresholds locally.
+- **High-Density QR Compression**: Encodes robust proofs into compact QR Codes using DEFLATE data compression.
+- **QR Proof Scanner**: Seamless built-in verification scanner supporting physical camera and uploaded images.
 
 ## Tech Stack
 
@@ -18,6 +21,8 @@ The frontend allows users to:
 - **Blockchain**: [Wagmi](https://wagmi.sh) & [Viem](https://viem.sh)
 - **ZKP**: [SnarkJS](https://github.com/iden3/snarkjs) & [Circomlibjs](https://github.com/iden3/circomlibjs) for client-side proof generation.
 - **Storage**: [Pinata SDK](https://docs.pinata.cloud/) for IPFS interaction
+- **Compression**: `pako` for DEFLATE compression of ZKP payloads
+- **Scanning**: `html5-qrcode` for robust image and camera decoding.
 
 ## Prerequisites
 

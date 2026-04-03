@@ -11,6 +11,10 @@ The **PrivChain** is a decentralized, privacy-preserving platform for issuing, s
 - **Secure Verification**: Instant verification via smart contract calls—no manual checks required.
 - **On-Chain Revocation**: Issuers can revoke credentials instantly if needed.
 - **Privacy-Preserving Age Verification (ZKP)**: Users prove eligibility (e.g., age > 18) without revealing their actual birthdate.
+- **Multiple ZK Verification Profiles**: Support for Age Verification (18+) and CGPA Threshold Verification within the same ecosystem.
+- **Offline QR Code Scanner**: Robust built-in scanner supporting camera and image payloads with automated state handling.
+- **ZKP Payload Compression**: Integrated DEFLATE data compression (`pako`) to minimize the footprint of dense Zero-Knowledge proofs inside QR codes.
+- **Live Testnet Deployment**: Fully integrated and deployed on the public Sepolia Ethereum network.
 
 ## 📸 How It Works
 
