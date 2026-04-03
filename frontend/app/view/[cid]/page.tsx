@@ -290,7 +290,12 @@ export default function ViewPage({ params }: { params: Promise<{ cid: string }> 
 
         } catch (e) {
             console.error(e);
-            setZkpError("Error proving CGPA: " + (e as Error).message);
+            const msg = (e as Error).message;
+            if (msg.includes("Assert Failed")) {
+                setZkpError(`Proof Verification Failed: CGPA does not meet the specified threshold (> ${thresholdVal}).`);
+            } else {
+                setZkpError("Error proving CGPA: " + msg);
+            }
         } finally {
             setVerifyingZKP(false);
             setShowCGPAInput(false);
